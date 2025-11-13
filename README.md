@@ -45,6 +45,22 @@ pip install -r requirements.txt
 
 ## Quick Start
 
+### Using the CLI
+
+```bash
+# Run pipeline on a directory
+python cli.py run data/raw/ --directory --analyze
+
+# Analyze existing data
+python cli.py analyze --table unified_data
+
+# List database tables
+python cli.py list
+
+# Save analysis report to JSON
+python cli.py analyze --table unified_data --output report.json
+```
+
 ### Basic Usage
 
 ```python
