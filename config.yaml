@@ -1,0 +1,35 @@
+database:
+  path: data/processed/goldminer.db
+  table_name: unified_data
+
+data_sources:
+  raw_data_dir: data/raw
+  processed_data_dir: data/processed
+
+etl:
+  date_formats:
+    - "%Y-%m-%d"
+    - "%m/%d/%Y"
+    - "%d-%m-%Y"
+    - "%Y/%m/%d"
+    - "%d/%m/%Y"
+    - "%B %d, %Y"
+    - "%b %d, %Y"
+    - "%Y-%m-%d %H:%M:%S"
+    - "%m/%d/%Y %H:%M:%S"
+  duplicate_columns: []  # Empty means use all columns
+  normalization:
+    strip_whitespace: true
+    lowercase_columns: true
+    remove_special_chars: false
+
+analysis:
+  anomaly_detection:
+    zscore_threshold: 3.0
+    iqr_multiplier: 1.5
+  trend_window: 7  # days for moving average
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: logs/goldminer.log
