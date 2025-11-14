@@ -1,0 +1,2 @@
+# This file ensures the data/raw directory is tracked in git
+# Place your raw CSV and Excel data files here for ingestion

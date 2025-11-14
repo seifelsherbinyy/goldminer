@@ -41,7 +41,18 @@ cd goldminer
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Verify installation and pipeline readiness
+python verify_setup.py
 ```
+
+The verification script will check:
+- All required dependencies are installed
+- Directory structure is correct
+- Configuration is valid
+- All modules can be imported
+- Basic pipeline functionality works
+- All unit tests pass
 
 ## Quick Start
 
