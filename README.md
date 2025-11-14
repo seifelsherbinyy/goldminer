@@ -27,6 +27,16 @@ A robust Python ETL (Extract, Transform, Load) pipeline for data processing and 
 - **Outlier Identification**: Detect and report outliers with detailed statistics
 - **Full Reports**: Generate comprehensive analysis reports in one call
 
+### Transaction Analysis Module (NEW)
+- **Time-Based Aggregations**: Hourly, daily, and monthly transaction summaries
+- **Spike & Drop Detection**: Identify unusual patterns in transaction data
+- **Moving Averages**: Calculate trends with customizable windows (7-day, 14-day, 30-day)
+- **Performance Indicators**: Comprehensive KPIs including growth rates and quartiles
+- **Top Period Identification**: Find best and worst performing time periods
+- **Visualization Support**: Pre-formatted data for charts and dashboards
+- **Error Handling**: Robust validation for missing data and invalid formats
+- **JSON Export**: Generate reports suitable for automated systems
+
 ### Configuration & Logging
 - **Config-Driven**: YAML-based configuration for easy customization
 - **Comprehensive Logging**: Structured logging to console and file
@@ -86,18 +96,58 @@ report = analyzer.generate_full_report(df)
 print(report)
 ```
 
-### Run Example Script
+### Transaction Analysis Example
 
-```bash
-python example_usage.py
+```python
+from goldminer.analysis import TransactionAnalyzer
+
+# Initialize transaction analyzer
+analyzer = TransactionAnalyzer(config)
+
+# Analyze transaction data with hourly, daily, and monthly insights
+report = analyzer.generate_comprehensive_report(
+    df,
+    value_column='amount',
+    date_column='timestamp'
+)
+
+# Access specific analysis sections
+print(report['hourly_analysis'])  # Peak hours and patterns
+print(report['daily_analysis'])   # Daily trends and anomalies
+print(report['monthly_analysis']) # Monthly performance
+
+# Detect spikes and drops
+daily_summary = analyzer.summarize_by_day(df, 'amount', 'timestamp')
+anomalies = analyzer.detect_spikes_and_drops(daily_summary, 'amount_sum')
+print(f"Spikes: {anomalies['spike_count']}, Drops: {anomalies['drop_count']}")
 ```
 
-This will:
+### Run Example Scripts
+
+```bash
+# General ETL and analysis example
+python example_usage.py
+
+# Transaction analysis demo with comprehensive examples
+python transaction_analysis_demo.py
+```
+
+**example_usage.py** will:
 1. Create sample data files (CSV and Excel)
 2. Run the complete ETL pipeline
 3. Store data in SQLite database
 4. Perform comprehensive analysis
 5. Display results and metrics
+
+**transaction_analysis_demo.py** will:
+1. Generate 90 days of realistic transaction data
+2. Perform hourly, daily, and monthly analysis
+3. Detect anomalies and identify spikes/drops
+4. Calculate moving averages and trends
+5. Identify top-performing periods
+6. Generate JSON reports for automation
+7. Create visualization-ready data
+8. Demonstrate error handling capabilities
 
 ## Project Structure
 
@@ -114,15 +164,18 @@ goldminer/
 │   │   ├── database.py    # Database operations
 │   │   └── pipeline.py    # Pipeline orchestrator
 │   ├── analysis/          # Analysis module
-│   │   └── analyzer.py    # Data analysis
+│   │   ├── analyzer.py    # General data analysis
+│   │   └── transaction_analyzer.py  # Transaction time-series analysis
 │   └── utils/             # Utilities
 │       └── logger.py      # Logging configuration
 ├── tests/                 # Test suite
-│   └── unit/             # Unit tests
+│   └── unit/             # Unit tests (52 tests)
 ├── data/                  # Data directories
 │   ├── raw/              # Raw data files
 │   └── processed/        # Processed data and database
 ├── logs/                  # Log files
+├── transaction_analysis_demo.py  # Transaction analysis demo
+├── TRANSACTION_ANALYSIS_GUIDE.md # Comprehensive guide
 ├── config.yaml           # Configuration file
 ├── requirements.txt      # Dependencies
 └── example_usage.py      # Example script
@@ -226,6 +279,38 @@ trends = analyzer.calculate_trends(df, 'amount')
 report = analyzer.generate_full_report(df)
 ```
 
+#### TransactionAnalyzer
+```python
+from goldminer.analysis import TransactionAnalyzer
+
+analyzer = TransactionAnalyzer(config)
+
+# Time-based aggregations
+hourly = analyzer.summarize_by_hour(df, 'amount', 'timestamp')
+daily = analyzer.summarize_by_day(df, 'amount', 'timestamp')
+monthly = analyzer.summarize_by_month(df, 'amount', 'timestamp')
+
+# Anomaly detection
+anomalies = analyzer.detect_spikes_and_drops(daily, 'amount_sum', method='iqr')
+
+# Trend analysis
+trends = analyzer.calculate_moving_averages(daily, 'amount_sum', windows=[7, 14, 30])
+
+# Performance indicators
+indicators = analyzer.calculate_performance_indicators(df, 'amount', 'timestamp')
+
+# Top periods
+top_periods = analyzer.identify_top_periods(daily, 'amount_sum', top_n=10)
+
+# Comprehensive report
+report = analyzer.generate_comprehensive_report(df, 'amount', 'timestamp')
+
+# Visualization data
+viz_data = analyzer.generate_visualization_data(df, 'amount', 'timestamp')
+```
+
+For detailed documentation on TransactionAnalyzer, see [TRANSACTION_ANALYSIS_GUIDE.md](TRANSACTION_ANALYSIS_GUIDE.md).
+
 ## Testing
 
 Run the unit tests:
@@ -242,14 +327,18 @@ All tests should pass, covering:
 - Data cleaning
 - Database operations
 - Data analysis
+- Transaction analysis (time-series)
 
 ## Use Cases
 
 - **Financial Data Processing**: Consolidate transactions from multiple sources
+- **Transaction Monitoring**: Analyze hourly, daily, and monthly transaction patterns
+- **Anomaly Detection**: Identify unusual spikes and drops in business metrics
 - **Data Quality Monitoring**: Detect anomalies and outliers in datasets
 - **ETL Automation**: Build automated data pipelines for regular processing
 - **Data Integration**: Combine and normalize data from various formats
 - **Analysis & Reporting**: Generate insights and trends from processed data
+- **Performance Tracking**: Monitor KPIs and identify top-performing periods
 
 ## Requirements
 
