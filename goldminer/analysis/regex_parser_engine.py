@@ -25,18 +25,21 @@ class RegexParserEngine:
     Attributes:
         templates (Dict[str, List[Dict]]): Dictionary mapping bank IDs to their templates
         logger: Logger instance for tracking parsing operations
+        use_card_classifier: Whether to use CardClassifier for enhanced card suffix extraction
     
     Note:
         For comprehensive examples, see the unit tests in tests/unit/test_regex_parser_engine.py
     """
     
-    def __init__(self, templates_file: Optional[str] = None):
+    def __init__(self, templates_file: Optional[str] = None, use_card_classifier: bool = True):
         """
         Initialize the RegexParserEngine.
         
         Args:
             templates_file: Path to YAML or JSON file containing parsing templates.
                           If None, uses default 'sms_parsing_templates.yaml' in project root.
+            use_card_classifier: Whether to use CardClassifier for enhanced card suffix 
+                               extraction. Default is True.
         
         Raises:
             FileNotFoundError: If templates file doesn't exist
@@ -48,6 +51,7 @@ class RegexParserEngine:
             True
         """
         self.logger = setup_logger(__name__)
+        self.use_card_classifier = use_card_classifier
         
         # Determine templates file path
         if templates_file is None:
@@ -218,6 +222,27 @@ class RegexParserEngine:
             self.logger.warning(f"Regex error for pattern '{pattern}': {e}")
             return None
     
+    def _extract_card_suffix_enhanced(self, sms: str) -> Optional[str]:
+        """
+        Extract card suffix using CardClassifier for enhanced extraction.
+        
+        This method uses CardClassifier's extract_card_suffix which supports
+        more patterns and better handles both English and Arabic text.
+        
+        Args:
+            sms: SMS message text
+            
+        Returns:
+            4-digit card suffix or None if not found
+        """
+        try:
+            # Import CardClassifier here to avoid circular imports
+            from .card_classifier import CardClassifier
+            return CardClassifier.extract_card_suffix(sms)
+        except Exception as e:
+            self.logger.warning(f"Error using CardClassifier for suffix extraction: {e}")
+            return None
+    
     def _apply_template(
         self,
         sms: str,
@@ -348,6 +373,12 @@ class RegexParserEngine:
                 
                 # Extract fields using this template
                 extracted = self._apply_template(sms, template)
+                
+                # Enhance card suffix extraction using CardClassifier if enabled
+                if self.use_card_classifier and extracted.get('card_suffix') is None:
+                    enhanced_suffix = self._extract_card_suffix_enhanced(sms)
+                    if enhanced_suffix:
+                        extracted['card_suffix'] = enhanced_suffix
                 
                 # Calculate confidence
                 required_fields = template.get('required_fields', ['amount'])
