@@ -6,6 +6,7 @@ from .clean import DataCleaner
 from .database import DatabaseManager
 from .pipeline import ETLPipeline
 from .field_validator import FieldValidator, ParsedTransaction
+from .schema_normalizer import SchemaNormalizer, TransactionRecord
 
 __all__ = [
     "DataIngestion",
@@ -16,5 +17,7 @@ __all__ = [
     "DatabaseManager",
     "ETLPipeline",
     "FieldValidator",
-    "ParsedTransaction"
+    "ParsedTransaction",
+    "SchemaNormalizer",
+    "TransactionRecord"
 ]
