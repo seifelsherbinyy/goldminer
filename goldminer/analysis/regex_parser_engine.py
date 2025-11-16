@@ -119,6 +119,71 @@ class RegexParserEngine:
             self.logger.error(f"Error loading templates: {e}")
             raise
     
+    @staticmethod
+    def convert_arabic_indic_numerals(text: str) -> str:
+        """
+        Convert Arabic-Indic numerals to Western (Latin) numerals.
+        
+        This method replaces Arabic-Indic digits (٠-٩) with Western equivalents (0-9)
+        and converts Arabic comma separators to their Western counterparts.
+        It handles mixed-language strings correctly and preserves all non-numeral
+        characters, including Latin alphabet characters.
+        
+        Arabic-Indic numerals used in many Arabic-speaking countries:
+        - ٠ (U+0660) -> 0
+        - ١ (U+0661) -> 1
+        - ٢ (U+0662) -> 2
+        - ٣ (U+0663) -> 3
+        - ٤ (U+0664) -> 4
+        - ٥ (U+0665) -> 5
+        - ٦ (U+0666) -> 6
+        - ٧ (U+0667) -> 7
+        - ٨ (U+0668) -> 8
+        - ٩ (U+0669) -> 9
+        - ٫ (U+066B) -> . (Arabic decimal separator)
+        - ٬ (U+066C) -> , (Arabic thousands separator)
+        
+        Args:
+            text: Input text that may contain Arabic-Indic numerals
+            
+        Returns:
+            Text with Arabic-Indic numerals converted to Western numerals
+            
+        Examples:
+            >>> RegexParserEngine.convert_arabic_indic_numerals("١٢٣")
+            '123'
+            >>> RegexParserEngine.convert_arabic_indic_numerals("مبلغ ١٥٠٫٥٠ جنيه")
+            'مبلغ 150.50 جنيه'
+            >>> RegexParserEngine.convert_arabic_indic_numerals("Mixed: ١٢٣ and 456")
+            'Mixed: 123 and 456'
+            >>> RegexParserEngine.convert_arabic_indic_numerals("Latin text ABC")
+            'Latin text ABC'
+            >>> RegexParserEngine.convert_arabic_indic_numerals("١٬٢٣٤٫٥٦")
+            '1,234.56'
+        """
+        if not text or not isinstance(text, str):
+            return text
+        
+        # Define the translation table for Arabic-Indic to Western numerals
+        # Arabic-Indic digits: ٠١٢٣٤٥٦٧٨٩
+        # Western digits: 0123456789
+        translation_table = str.maketrans({
+            '٠': '0',  # U+0660
+            '١': '1',  # U+0661
+            '٢': '2',  # U+0662
+            '٣': '3',  # U+0663
+            '٤': '4',  # U+0664
+            '٥': '5',  # U+0665
+            '٦': '6',  # U+0666
+            '٧': '7',  # U+0667
+            '٨': '8',  # U+0668
+            '٩': '9',  # U+0669
+            '٫': '.',  # U+066B - Arabic decimal separator
+            '٬': ',',  # U+066C - Arabic thousands separator
+        })
+        
+        return text.translate(translation_table)
+    
     def _extract_field(self, sms: str, pattern: str, field_name: str) -> Optional[str]:
         """
         Extract a field from SMS using a regex pattern.
@@ -139,11 +204,15 @@ class RegexParserEngine:
                 if groups:
                     # Prefer the field name itself if it exists as a named group
                     if field_name in groups and groups[field_name] is not None:
-                        return groups[field_name].strip()
+                        value = groups[field_name].strip()
+                        # Convert Arabic-Indic numerals to Western numerals
+                        return self.convert_arabic_indic_numerals(value)
                     # Otherwise return the first non-None value
                     for value in groups.values():
                         if value is not None:
-                            return value.strip()
+                            value = value.strip()
+                            # Convert Arabic-Indic numerals to Western numerals
+                            return self.convert_arabic_indic_numerals(value)
             return None
         except re.error as e:
             self.logger.warning(f"Regex error for pattern '{pattern}': {e}")
