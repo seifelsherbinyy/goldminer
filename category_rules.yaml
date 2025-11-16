@@ -1,0 +1,515 @@
+# Category Rules Configuration
+# Rules for categorizing transactions based on merchant names, keywords, and patterns
+
+# Priority system:
+# 1. Exact merchant match (merchant_exact)
+# 2. Fuzzy merchant match (merchant_fuzzy)
+# 3. Keyword match (keywords)
+# 4. Fallback to "Uncategorized" if no match
+
+categories:
+  # Food & Dining
+  - category: "Food & Dining"
+    subcategory: "Restaurants"
+    tags:
+      - "Dining"
+    merchant_exact:
+      - "McDonald's"
+      - "KFC"
+      - "Pizza Hut"
+      - "Domino's"
+      - "Subway"
+      - "Starbucks"
+      - "Costa Coffee"
+      - "Hardee's"
+      - "Burger King"
+    merchant_fuzzy:
+      - "mcdonalds"
+      - "mcdonald"
+      - "mac donald"
+      - "pizza"
+      - "burger"
+      - "coffee"
+      - "cafe"
+    keywords:
+      english:
+        - "restaurant"
+        - "food"
+        - "dining"
+        - "meal"
+        - "lunch"
+        - "dinner"
+        - "breakfast"
+      arabic:
+        - "مطعم"
+        - "طعام"
+        - "وجبة"
+        - "غداء"
+        - "عشاء"
+
+  - category: "Food & Dining"
+    subcategory: "Groceries"
+    tags:
+      - "Grocery"
+      - "Household"
+    merchant_exact:
+      - "Carrefour"
+      - "Metro"
+      - "Spinneys"
+      - "Hyper One"
+      - "Fathalla"
+      - "Kheir Zaman"
+      - "Seoudi"
+    merchant_fuzzy:
+      - "carrefur"
+      - "spinnys"
+      - "hypermarket"
+      - "supermarket"
+    keywords:
+      english:
+        - "grocery"
+        - "groceries"
+        - "supermarket"
+        - "market"
+        - "mart"
+      arabic:
+        - "بقالة"
+        - "سوبر"
+        - "هايبر"
+        - "سوق"
+
+  # Shopping
+  - category: "Shopping"
+    subcategory: "Fashion & Apparel"
+    tags:
+      - "Shopping"
+      - "Fashion"
+    merchant_exact:
+      - "Zara"
+      - "H&M"
+      - "Mango"
+      - "Nike"
+      - "Adidas"
+      - "LC Waikiki"
+    merchant_fuzzy:
+      - "zara"
+      - "h&m"
+      - "h and m"
+      - "nike"
+      - "adidas"
+    keywords:
+      english:
+        - "fashion"
+        - "clothing"
+        - "clothes"
+        - "apparel"
+        - "wear"
+      arabic:
+        - "ملابس"
+        - "أزياء"
+        - "موضة"
+
+  - category: "Shopping"
+    subcategory: "Electronics"
+    tags:
+      - "Shopping"
+      - "Electronics"
+    merchant_exact:
+      - "Amazon"
+      - "Noon"
+      - "Jumia"
+      - "B.TECH"
+      - "Radio Shack"
+      - "Jumbo Electronics"
+    merchant_fuzzy:
+      - "amazon"
+      - "jumia"
+      - "btech"
+      - "electronics"
+    keywords:
+      english:
+        - "electronics"
+        - "tech"
+        - "technology"
+        - "computer"
+        - "phone"
+        - "mobile"
+        - "gadget"
+      arabic:
+        - "إلكترونيات"
+        - "تقنية"
+        - "كمبيوتر"
+        - "هاتف"
+        - "جوال"
+
+  - category: "Shopping"
+    subcategory: "Online Shopping"
+    tags:
+      - "Shopping"
+      - "Online"
+    merchant_exact:
+      - "Amazon.com"
+      - "Noon.com"
+      - "Souq.com"
+      - "AliExpress"
+      - "eBay"
+    merchant_fuzzy:
+      - "amazon"
+      - "noon"
+      - "souq"
+      - "aliexpress"
+      - "ebay"
+    keywords:
+      english:
+        - "online shop"
+        - "e-commerce"
+        - "ecommerce"
+      arabic:
+        - "تسوق إلكتروني"
+        - "متجر إلكتروني"
+
+  # Transportation
+  - category: "Transportation"
+    subcategory: "Ride Share"
+    tags:
+      - "Transportation"
+      - "Rideshare"
+    merchant_exact:
+      - "Uber"
+      - "Careem"
+      - "Bolt"
+      - "InDrive"
+    merchant_fuzzy:
+      - "uber"
+      - "careem"
+      - "bolt"
+      - "indrive"
+    keywords:
+      english:
+        - "ride"
+        - "taxi"
+        - "cab"
+        - "transport"
+      arabic:
+        - "توصيل"
+        - "تاكسي"
+        - "نقل"
+
+  - category: "Transportation"
+    subcategory: "Fuel"
+    tags:
+      - "Transportation"
+      - "Fuel"
+    merchant_exact:
+      - "Shell"
+      - "Total"
+      - "Mobil"
+      - "Wataniya"
+      - "Misr Petroleum"
+    merchant_fuzzy:
+      - "shell"
+      - "petrol"
+      - "gas station"
+    keywords:
+      english:
+        - "fuel"
+        - "gas"
+        - "petrol"
+        - "diesel"
+        - "station"
+      arabic:
+        - "وقود"
+        - "بنزين"
+        - "محطة"
+
+  # Entertainment
+  - category: "Entertainment"
+    subcategory: "Streaming Services"
+    tags:
+      - "Entertainment"
+      - "Subscription"
+    merchant_exact:
+      - "Netflix"
+      - "Spotify"
+      - "Apple Music"
+      - "Disney+"
+      - "HBO Max"
+      - "Shahid"
+      - "Watch iT"
+    merchant_fuzzy:
+      - "netflix"
+      - "spotify"
+      - "disney"
+      - "shahid"
+      - "watchit"
+    keywords:
+      english:
+        - "streaming"
+        - "subscription"
+        - "music"
+        - "video"
+      arabic:
+        - "بث"
+        - "اشتراك"
+        - "موسيقى"
+
+  - category: "Entertainment"
+    subcategory: "Cinema & Events"
+    tags:
+      - "Entertainment"
+      - "Cinema"
+    merchant_exact:
+      - "VOX Cinemas"
+      - "Cinescape"
+      - "Renaissance Cinemas"
+    merchant_fuzzy:
+      - "vox"
+      - "cinema"
+      - "movie"
+    keywords:
+      english:
+        - "cinema"
+        - "movie"
+        - "film"
+        - "theater"
+        - "theatre"
+      arabic:
+        - "سينما"
+        - "فيلم"
+
+  # Healthcare
+  - category: "Healthcare"
+    subcategory: "Pharmacy"
+    tags:
+      - "Healthcare"
+      - "Pharmacy"
+    merchant_exact:
+      - "El Ezaby"
+      - "Seif"
+      - "19011"
+      - "Al Dawaa"
+    merchant_fuzzy:
+      - "pharmacy"
+      - "ezaby"
+      - "dawaa"
+      - "seif"
+    keywords:
+      english:
+        - "pharmacy"
+        - "drug"
+        - "medicine"
+        - "medication"
+      arabic:
+        - "صيدلية"
+        - "دواء"
+        - "علاج"
+
+  - category: "Healthcare"
+    subcategory: "Medical Services"
+    tags:
+      - "Healthcare"
+      - "Medical"
+    merchant_exact:
+      - "Al Salam Hospital"
+      - "Saudi German Hospital"
+      - "Cleopatra Hospital"
+    merchant_fuzzy:
+      - "hospital"
+      - "clinic"
+      - "medical"
+      - "doctor"
+    keywords:
+      english:
+        - "hospital"
+        - "clinic"
+        - "medical"
+        - "doctor"
+        - "health"
+      arabic:
+        - "مستشفى"
+        - "عيادة"
+        - "طبيب"
+        - "صحة"
+
+  # Utilities
+  - category: "Utilities"
+    subcategory: "Telecommunications"
+    tags:
+      - "Utilities"
+      - "Telecom"
+    merchant_exact:
+      - "Vodafone"
+      - "Orange"
+      - "Etisalat"
+      - "WE"
+    merchant_fuzzy:
+      - "vodafone"
+      - "orange"
+      - "etisalat"
+    keywords:
+      english:
+        - "mobile"
+        - "internet"
+        - "telecom"
+        - "phone"
+      arabic:
+        - "موبايل"
+        - "إنترنت"
+        - "اتصالات"
+
+  - category: "Utilities"
+    subcategory: "Bills"
+    tags:
+      - "Utilities"
+      - "Bills"
+    keywords:
+      english:
+        - "electricity"
+        - "water"
+        - "gas"
+        - "bill"
+        - "utility"
+      arabic:
+        - "كهرباء"
+        - "مياه"
+        - "فاتورة"
+
+  # Travel
+  - category: "Travel"
+    subcategory: "Flights"
+    tags:
+      - "Travel"
+      - "Flights"
+    merchant_exact:
+      - "EgyptAir"
+      - "Emirates"
+      - "Etihad"
+      - "Qatar Airways"
+      - "Air Cairo"
+    merchant_fuzzy:
+      - "egypt air"
+      - "egyptair"
+      - "emirates"
+      - "airways"
+      - "airline"
+    keywords:
+      english:
+        - "flight"
+        - "airline"
+        - "aviation"
+        - "airport"
+      arabic:
+        - "طيران"
+        - "رحلة"
+        - "مطار"
+
+  - category: "Travel"
+    subcategory: "Hotels"
+    tags:
+      - "Travel"
+      - "Accommodation"
+    merchant_exact:
+      - "Marriott"
+      - "Hilton"
+      - "Sheraton"
+      - "Booking.com"
+      - "Hotels.com"
+    merchant_fuzzy:
+      - "hotel"
+      - "booking"
+      - "resort"
+    keywords:
+      english:
+        - "hotel"
+        - "accommodation"
+        - "resort"
+        - "booking"
+      arabic:
+        - "فندق"
+        - "حجز"
+
+  # Education
+  - category: "Education"
+    subcategory: "Tuition & Courses"
+    tags:
+      - "Education"
+    merchant_exact:
+      - "Coursera"
+      - "Udemy"
+      - "edX"
+    merchant_fuzzy:
+      - "university"
+      - "school"
+      - "academy"
+    keywords:
+      english:
+        - "education"
+        - "school"
+        - "tuition"
+        - "course"
+        - "training"
+      arabic:
+        - "تعليم"
+        - "مدرسة"
+        - "دورة"
+        - "تدريب"
+
+  # Financial Services
+  - category: "Financial Services"
+    subcategory: "Bank Fees"
+    tags:
+      - "Financial"
+      - "Fees"
+    keywords:
+      english:
+        - "bank fee"
+        - "service charge"
+        - "annual fee"
+        - "atm fee"
+      arabic:
+        - "رسوم بنكية"
+        - "رسوم خدمة"
+
+  - category: "Financial Services"
+    subcategory: "ATM Withdrawal"
+    tags:
+      - "Financial"
+      - "ATM"
+    keywords:
+      english:
+        - "atm"
+        - "withdrawal"
+        - "cash"
+      arabic:
+        - "صراف"
+        - "سحب نقدي"
+        - "نقد"
+
+  # Personal Care
+  - category: "Personal Care"
+    subcategory: "Beauty & Salon"
+    tags:
+      - "Personal Care"
+      - "Beauty"
+    merchant_fuzzy:
+      - "salon"
+      - "spa"
+      - "barber"
+    keywords:
+      english:
+        - "salon"
+        - "barber"
+        - "spa"
+        - "beauty"
+        - "haircut"
+      arabic:
+        - "صالون"
+        - "حلاق"
+        - "تجميل"
+
+# Fallback category for unmatched transactions
+fallback:
+  category: "Uncategorized"
+  subcategory: "General"
+  tags:
+    - "Uncategorized"

@@ -8,6 +8,7 @@ from .pipeline import ETLPipeline
 from .field_validator import FieldValidator, ParsedTransaction
 from .schema_normalizer import SchemaNormalizer, TransactionRecord
 from .promo_classifier import PromoClassifier, PromoResult
+from .categorizer import Categorizer
 
 __all__ = [
     "DataIngestion",
@@ -22,5 +23,6 @@ __all__ = [
     "SchemaNormalizer",
     "TransactionRecord",
     "PromoClassifier",
-    "PromoResult"
+    "PromoResult",
+    "Categorizer"
 ]
