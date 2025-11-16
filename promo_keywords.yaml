@@ -1,0 +1,65 @@
+# Promotional Keywords Configuration
+# Keywords used to identify promotional/marketing SMS messages
+# These messages should be filtered out before transaction processing
+# Note: Avoid ambiguous keywords that could appear in both promotional and transactional messages
+
+# English promotional keywords
+english:
+  - "offer"
+  - "discount"
+  - "sale"
+  - "enjoy"
+  - "special offer"
+  - "limited time"
+  - "promotion"
+  - "promo"
+  - "deal"
+  - "deals"
+  - "save"
+  - "saving"
+  - "cashback"
+  - "reward"
+  - "rewards"
+  - "exclusive"
+  - "free"
+  - "gift"
+  - "bonus"
+  - "win"
+  - "winner"
+  - "congratulations"
+  - "congrats"
+  - "voucher"
+  - "coupon"
+  - "redeem"
+  - "off"
+  - "% off"
+  - "percent off"
+
+# Arabic promotional keywords
+# Note: "خصم" (debit/discount) is excluded as it appears in both transaction and promo messages
+# Note: "عرض" alone is excluded as it can mean "display/show" in transaction contexts
+# Note: "وفر" alone is excluded as it's ambiguous
+arabic:
+  - "عرض خاص"
+  - "لفترة محدودة"
+  - "عروض"
+  - "توفير"
+  - "مجاني"
+  - "هدية"
+  - "مكافأة"
+  - "مكافآت"
+  - "حصري"
+  - "خصومات"
+  - "استمتع"
+  - "تخفيض"
+  - "تخفيضات"
+  - "كاش باك"
+  - "قسيمة"
+  - "كوبون"
+  - "مبروك"
+  - "فائز"
+  - "اربح"
+  - "جائزة"
+  - "وفر الآن"
+  - "احصل على"
+  - "فرصة"
