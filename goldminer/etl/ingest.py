@@ -1,4 +1,13 @@
-"""Data ingestion module for CSV and Excel files."""
+"""
+Data ingestion module for CSV and Excel files.
+
+This module provides functionality for loading data from various sources including:
+- CSV and Excel files (via DataIngestion class)
+- SMS messages from text and JSON files (via load_sms_messages function)
+
+The load_sms_messages function includes advanced sanitization and deduplication
+to ensure clean, unique message data for downstream processing.
+"""
 import pandas as pd
 import os
 import json
