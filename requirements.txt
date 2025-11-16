@@ -4,6 +4,10 @@ numpy>=1.24.0
 openpyxl>=3.1.0
 pyyaml>=6.0
 
+# Bank Pattern Recognition
+fuzzywuzzy>=0.18.0
+python-Levenshtein>=0.12.0
+
 # Optional: For visualization (not required for core functionality)
 # matplotlib>=3.5.0
 # plotly>=5.0.0
