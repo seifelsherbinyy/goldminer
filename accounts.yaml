@@ -1,0 +1,51 @@
+# Account Metadata
+# Maps card suffixes (last 4 digits) to account information
+# This file is used by CardClassifier to enrich transaction data with account details
+
+"1234":
+  account_id: "ACC-HSBC-001"
+  account_type: "Credit"
+  interest_rate: 19.99
+  credit_limit: 50000.00
+  billing_cycle: 15
+  label: "HSBC Credit Card - Primary"
+
+"5678":
+  account_id: "ACC-CIB-002"
+  account_type: "Debit"
+  interest_rate: null
+  credit_limit: null
+  billing_cycle: null
+  label: "CIB Debit Card - Checking"
+
+"9012":
+  account_id: "ACC-NBE-003"
+  account_type: "Credit"
+  interest_rate: 22.50
+  credit_limit: 30000.00
+  billing_cycle: 1
+  label: "NBE Credit Card - Travel"
+
+"3456":
+  account_id: "ACC-QNB-004"
+  account_type: "Prepaid"
+  interest_rate: null
+  credit_limit: null
+  billing_cycle: null
+  label: "QNB Prepaid Card - Shopping"
+
+"7890":
+  account_id: "ACC-HSBC-005"
+  account_type: "Debit"
+  interest_rate: null
+  credit_limit: null
+  billing_cycle: null
+  label: "HSBC Debit Card - Savings"
+
+"4321":
+  account_id: "ACC-CIB-006"
+  account_type: "Credit"
+  interest_rate: 18.75
+  credit_limit: 75000.00
+  billing_cycle: 20
+  label: "CIB Credit Card - Platinum"
