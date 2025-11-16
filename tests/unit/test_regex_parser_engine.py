@@ -773,6 +773,40 @@ class TestRegexParserEngine(unittest.TestCase):
         # Third message: Western numerals preserved
         self.assertEqual(results[2]['amount'], '300')
         self.assertEqual(results[2]['card_suffix'], '1234')
+    
+    def test_card_classifier_integration_enabled(self):
+        """Test that CardClassifier is used when enabled."""
+        parser = RegexParserEngine(templates_file=self.test_templates_file, use_card_classifier=True)
+        
+        # SMS with card suffix that doesn't match template pattern but should be caught by CardClassifier
+        sms = "HSBC: charged 100 EGP on Card **1234"
+        result = parser.parse_sms(sms, bank_id="HSBC")
+        
+        # Should extract suffix using CardClassifier since template pattern won't match
+        self.assertEqual(result['card_suffix'], '1234')
+    
+    def test_card_classifier_integration_disabled(self):
+        """Test that CardClassifier is not used when disabled."""
+        parser = RegexParserEngine(templates_file=self.test_templates_file, use_card_classifier=False)
+        
+        # SMS with card suffix that only CardClassifier would catch
+        sms = "HSBC: charged 100 EGP on Card **1234"
+        result = parser.parse_sms(sms, bank_id="HSBC")
+        
+        # Should not extract suffix since template pattern requires "ending" keyword
+        # and CardClassifier is disabled
+        self.assertIsNone(result['card_suffix'])
+    
+    def test_card_classifier_fallback_to_template(self):
+        """Test that template extraction still works when CardClassifier is enabled."""
+        parser = RegexParserEngine(templates_file=self.test_templates_file, use_card_classifier=True)
+        
+        # SMS with card suffix matching template pattern
+        sms = "HSBC: charged 100 EGP on card ending 5678"
+        result = parser.parse_sms(sms, bank_id="HSBC")
+        
+        # Should extract suffix using template pattern
+        self.assertEqual(result['card_suffix'], '5678')
 
 
 if __name__ == '__main__':
