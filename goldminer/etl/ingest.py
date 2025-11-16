@@ -1,7 +1,18 @@
-"""Data ingestion module for CSV and Excel files."""
+"""
+Data ingestion module for CSV and Excel files.
+
+This module provides functionality for loading data from various sources including:
+- CSV and Excel files (via DataIngestion class)
+- SMS messages from text and JSON files (via load_sms_messages function)
+
+The load_sms_messages function includes advanced sanitization and deduplication
+to ensure clean, unique message data for downstream processing.
+"""
 import pandas as pd
 import os
 import json
+import re
+import unicodedata
 from typing import List, Optional
 from pathlib import Path
 import glob
@@ -132,17 +143,67 @@ class DataIngestion:
         return df
 
 
+def _sanitize_message(message: str) -> str:
+    """
+    Sanitize a single SMS message string.
+    
+    Performs the following cleaning operations:
+    1. Strips leading and trailing whitespace
+    2. Normalizes Unicode characters (removes RTL marks and invisible characters)
+    3. Replaces multiple consecutive spaces with a single space
+    
+    Args:
+        message: Raw message string to sanitize
+        
+    Returns:
+        Sanitized message string
+        
+    Examples:
+        >>> _sanitize_message("  Hello World  ")
+        'Hello World'
+        >>> _sanitize_message("Hello\u200e  World")
+        'Hello World'
+        >>> _sanitize_message("Multiple   spaces   here")
+        'Multiple spaces here'
+    """
+    # Strip leading and trailing whitespace
+    message = message.strip()
+    
+    # Remove common invisible Unicode characters and RTL marks
+    # \u200e: Left-to-Right Mark
+    # \u200f: Right-to-Left Mark
+    # \u200b: Zero Width Space
+    # \u200c: Zero Width Non-Joiner
+    # \u200d: Zero Width Joiner
+    # \ufeff: Zero Width No-Break Space (BOM)
+    invisible_chars = ['\u200e', '\u200f', '\u200b', '\u200c', '\u200d', '\ufeff']
+    for char in invisible_chars:
+        message = message.replace(char, '')
+    
+    # Replace multiple consecutive spaces with a single space
+    message = re.sub(r' +', ' ', message)
+    
+    return message
+
+
 def load_sms_messages(
     filepath: Optional[str] = None,
     filetype: Optional[str] = None,
     max_messages: Optional[int] = None
 ) -> List[str]:
     """
-    Load SMS messages from a local file.
+    Load SMS messages from a local file with sanitization and deduplication.
     
     Reads SMS messages from a plain text .txt file (one SMS per line) or a 
     .json file containing a list of message strings. Handles encoding issues
     gracefully (e.g., UTF-16 → UTF-8) and returns fully decoded UTF-8 strings.
+    
+    Each message is sanitized by:
+    - Stripping leading/trailing whitespace
+    - Removing Unicode RTL marks and invisible characters (e.g., \u200e)
+    - Replacing multiple consecutive spaces with a single space
+    
+    Duplicate messages are automatically removed, keeping only unique entries.
     
     Args:
         filepath: Path to the SMS file. If None, returns empty list.
@@ -150,7 +211,7 @@ def load_sms_messages(
         max_messages: Maximum number of messages to load. If None, loads all messages.
         
     Returns:
-        List of strings where each string represents a single SMS message in UTF-8.
+        List of unique, sanitized strings where each string represents a single SMS message in UTF-8.
         
     Raises:
         ValueError: If filetype is invalid or file extension is not supported.
@@ -170,6 +231,8 @@ def load_sms_messages(
         - Works offline - no internet connection required
         - Handles multiple encodings: UTF-8, UTF-16, latin-1, cp1252
         - Empty lines in .txt files are automatically filtered out
+        - Messages are sanitized to remove invisible characters and normalize whitespace
+        - Duplicate messages are automatically removed
         - Gracefully logs errors and returns empty list on failure
     """
     logger = setup_logger(__name__)
@@ -255,8 +318,22 @@ def load_sms_messages(
             messages = messages[:max_messages]
             logger.info(f"Limited to first {max_messages} messages")
         
-        logger.info(f"Successfully loaded {len(messages)} SMS messages from {filepath}")
-        return messages
+        # Sanitize all messages
+        messages = [_sanitize_message(msg) for msg in messages]
+        
+        # Deduplicate messages while preserving order
+        seen = set()
+        deduplicated_messages = []
+        for msg in messages:
+            if msg and msg not in seen:
+                seen.add(msg)
+                deduplicated_messages.append(msg)
+        
+        if len(messages) != len(deduplicated_messages):
+            logger.info(f"Removed {len(messages) - len(deduplicated_messages)} duplicate message(s)")
+        
+        logger.info(f"Successfully loaded {len(deduplicated_messages)} unique SMS messages from {filepath}")
+        return deduplicated_messages
         
     except Exception as e:
         logger.error(f"Error reading SMS messages from {filepath}: {str(e)}")
