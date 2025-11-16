@@ -1,0 +1,115 @@
+# SMS Parsing Templates for RegexParserEngine
+# Each bank/institution can have multiple templates to match different SMS formats
+# Regex patterns should use named groups for extraction
+# Patterns should include context words to avoid false matches
+
+# HSBC Patterns
+HSBC:
+  - name: "HSBC Standard Transaction"
+    patterns:
+      amount: "(?:charged|debited|paid|amount|of)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>EGP|USD|EUR|SAR|AED)"
+      date: "(?:on|date)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{2,4}|\\d{4}[/-]\\d{2}[/-]\\d{2})"
+      payee: "(?:at|from|to)\\s+(?P<payee>[A-Za-z0-9\\s]+?)(?:\\s+on|\\.|$)"
+      transaction_type: "(?P<transaction_type>POS|ATM|Online|Purchase|Withdrawal|Transfer|Payment)"
+      card_suffix: "(?:ending|card)\\s+(?P<card_suffix>\\d{4})"
+    required_fields: ["amount", "currency"]
+
+  - name: "HSBC Arabic Transaction"
+    patterns:
+      amount: "(?:خصم|دفع|مبلغ)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>جنيه|دولار|يورو|ريال)"
+      date: "(?:في|بتاريخ)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{2,4})"
+      payee: "(?:في|من|الى)\\s+(?P<payee>[\\u0600-\\u06FFA-Za-z0-9\\s]+?)(?:\\s|$)"
+      transaction_type: "(?P<transaction_type>صراف|شراء|سحب|تحويل|دفع)"
+      card_suffix: "(?:رقم|بطاقة)\\s+(?P<card_suffix>\\d{4})"
+    required_fields: ["amount"]
+
+# CIB Patterns
+CIB:
+  - name: "CIB Standard Transaction"
+    patterns:
+      amount: "(?:charged|debited|of|amount)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>EGP|USD|EUR)"
+      date: "(?:on|date)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{2,4})"
+      payee: "(?:at|from)\\s+(?P<payee>[A-Za-z0-9\\s]+?)(?:\\s+on|\\.|,)"
+      transaction_type: "(?P<transaction_type>POS|ATM|Online|Purchase)"
+      card_suffix: "(?:card ending|ending)\\s+(?P<card_suffix>\\d{4})"
+    required_fields: ["amount", "currency"]
+
+  - name: "CIB Arabic Transaction"
+    patterns:
+      amount: "(?:خصم|دفع|مبلغ)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>جنيه|دولار)"
+      date: "(?:في|بتاريخ)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{2,4})"
+      payee: "(?:في|من)\\s+(?P<payee>[\\u0600-\\u06FFA-Za-z0-9\\s]+?)(?:\\s|$)"
+      transaction_type: "(?P<transaction_type>شراء|سحب|نقطة بيع)"
+      card_suffix: "(?:بطاقة رقم|رقم)\\s+(?P<card_suffix>\\d{4})"
+    required_fields: ["amount"]
+
+# NBE Patterns
+NBE:
+  - name: "NBE Standard Transaction"
+    patterns:
+      amount: "(?:charged|debited|withdrawal|of)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>EGP|USD)"
+      date: "(?:on|date)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{4})"
+      payee: "(?:at|merchant)\\s+(?P<payee>[A-Za-z0-9\\s]+?)(?:\\s|\\.|,|$)"
+      transaction_type: "(?P<transaction_type>POS|ATM|Purchase|Withdrawal)"
+      card_suffix: "(?:card)\\s+(?P<card_suffix>\\d{4})"
+    required_fields: ["amount", "currency"]
+
+  - name: "NBE Arabic Transaction"
+    patterns:
+      amount: "(?:خصم|سحب|مبلغ)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>جنيه|دولار)"
+      date: "(?:في|بتاريخ)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{4})"
+      payee: "(?:من|في)\\s+(?P<payee>[\\u0600-\\u06FFA-Za-z0-9\\s]+?)(?:\\s|$)"
+      transaction_type: "(?P<transaction_type>صراف آلي|نقطة بيع|سحب)"
+      card_suffix: "(?:بطاقة)\\s+(?P<card_suffix>\\d{4})"
+    required_fields: ["amount"]
+
+# QNB Patterns
+QNB:
+  - name: "QNB Standard Transaction"
+    patterns:
+      amount: "(?:charged|debited|amount|of)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>EGP|USD|SAR)"
+      date: "(?:on|date)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{2,4})"
+      payee: "(?:at|from)\\s+(?P<payee>[A-Za-z0-9\\s]+?)(?:\\s+on|\\.|$)"
+      transaction_type: "(?P<transaction_type>POS|ATM|Online)"
+      card_suffix: "(?:ending)\\s+(?P<card_suffix>\\d{4})"
+    required_fields: ["amount", "currency"]
+
+  - name: "QNB Arabic Transaction"
+    patterns:
+      amount: "(?:خصم|دفع|مبلغ)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>جنيه|ريال)"
+      date: "(?:في|بتاريخ)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{4})"
+      payee: "(?:في|من)\\s+(?P<payee>[\\u0600-\\u06FFa-zA-Z0-9\\s]+?)(?:\\s|$)"
+      transaction_type: "(?P<transaction_type>نقطة بيع|صراف|إلكتروني)"
+      card_suffix: "(?:رقم)\\s+(?P<card_suffix>\\d{4})"
+    required_fields: ["amount"]
+
+# Generic Bank Pattern
+Generic_Bank:
+  - name: "Generic Transaction"
+    patterns:
+      amount: "(?:charged|debited|amount|transaction|of|paid)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>EGP|USD|EUR|SAR|AED|GBP)"
+      date: "(?:on|date)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{2,4}|\\d{4}[/-]\\d{2}[/-]\\d{2})"
+      payee: "(?:at|from|to|merchant)\\s+(?P<payee>[A-Za-z0-9\\s]{3,30}?)(?:\\s+on|for|\\.|,|$)"
+      transaction_type: "(?P<transaction_type>POS|ATM|Online|Purchase|Withdrawal|Transfer|Payment)"
+      card_suffix: "(?:ending|card|card ending|\\*\\*)\\s*(?P<card_suffix>\\d{4})"
+    required_fields: ["amount"]
+
+  - name: "Generic Arabic Transaction"
+    patterns:
+      amount: "(?:خصم|دفع|مبلغ|تحويل)\\s+(?P<amount>\\d+(?:[,.]\\d{2})?)"
+      currency: "(?P<amount_val>\\d+(?:[,.]\\d{2})?)\\s+(?P<currency>جنيه|دولار|يورو|ريال)"
+      date: "(?:في|بتاريخ)\\s+(?P<date>\\d{2}[/-]\\d{2}[/-]\\d{2,4})"
+      payee: "(?:في|من|الى|التاجر)\\s+(?P<payee>[\\u0600-\\u06FFa-zA-Z0-9\\s]{3,30}?)(?:\\s|$)"
+      transaction_type: "(?P<transaction_type>صراف|شراء|سحب|تحويل|دفع|نقطة بيع)"
+      card_suffix: "(?:رقم|بطاقة|ينتهي)\\s+(?P<card_suffix>\\d{4})"
+    required_fields: ["amount"]
+
