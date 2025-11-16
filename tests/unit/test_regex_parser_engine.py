@@ -500,6 +500,279 @@ class TestRegexParserEngine(unittest.TestCase):
         
         self.assertEqual(result['amount'], '150')
         self.assertEqual(result['currency'], 'جنيه')
+    
+    def test_convert_arabic_indic_numerals_basic(self):
+        """Test basic Arabic-Indic numeral conversion."""
+        # Test each digit
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('٠١٢٣٤٥٦٧٨٩'),
+            '0123456789'
+        )
+        
+        # Test simple number
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('١٢٣'),
+            '123'
+        )
+    
+    def test_convert_arabic_indic_numerals_with_decimals(self):
+        """Test Arabic-Indic numeral conversion with decimal separators."""
+        # Test with Arabic decimal separator (٫)
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('١٥٠٫٥٠'),
+            '150.50'
+        )
+        
+        # Test with Western decimal already present
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('١٥٠.٥٠'),
+            '150.50'
+        )
+    
+    def test_convert_arabic_indic_numerals_with_thousands(self):
+        """Test Arabic-Indic numeral conversion with thousands separators."""
+        # Test with Arabic thousands separator (٬)
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('١٬٢٣٤٫٥٦'),
+            '1,234.56'
+        )
+        
+        # Test large number
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('٥٬٠٠٠٬٠٠٠'),
+            '5,000,000'
+        )
+    
+    def test_convert_arabic_indic_numerals_mixed_text(self):
+        """Test Arabic-Indic numeral conversion in mixed-language text."""
+        # Arabic text with Arabic-Indic numerals
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('مبلغ ١٥٠٫٥٠ جنيه'),
+            'مبلغ 150.50 جنيه'
+        )
+        
+        # Mixed Arabic and English
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('Amount: ١٥٠ EGP'),
+            'Amount: 150 EGP'
+        )
+    
+    def test_convert_arabic_indic_numerals_mixed_numerals(self):
+        """Test conversion with both Arabic-Indic and Western numerals."""
+        # Should convert Arabic-Indic but preserve Western
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('١٢٣ and 456'),
+            '123 and 456'
+        )
+        
+        # Mixed in same number context
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('Card ١٢٣٤ charged 500'),
+            'Card 1234 charged 500'
+        )
+    
+    def test_convert_arabic_indic_numerals_preserves_latin(self):
+        """Test that Latin characters are preserved during conversion."""
+        # Pure Latin text
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('Latin text ABC'),
+            'Latin text ABC'
+        )
+        
+        # Latin with Western numerals
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('Card 1234 charged 100.50 EGP'),
+            'Card 1234 charged 100.50 EGP'
+        )
+    
+    def test_convert_arabic_indic_numerals_edge_cases(self):
+        """Test edge cases for Arabic-Indic numeral conversion."""
+        # Empty string
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals(''),
+            ''
+        )
+        
+        # None
+        self.assertIsNone(
+            RegexParserEngine.convert_arabic_indic_numerals(None)
+        )
+        
+        # String with only spaces
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('   '),
+            '   '
+        )
+        
+        # No numerals to convert
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('مرحبا hello'),
+            'مرحبا hello'
+        )
+    
+    def test_convert_arabic_indic_numerals_special_characters(self):
+        """Test conversion with special characters preserved."""
+        # Special characters and symbols
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('Amount: ١٥٠٫٥٠ (pending)'),
+            'Amount: 150.50 (pending)'
+        )
+        
+        # With various punctuation
+        self.assertEqual(
+            RegexParserEngine.convert_arabic_indic_numerals('رقم: ١٢٣٤، التاريخ: ١٥/١١/٢٠٢٤'),
+            'رقم: 1234، التاريخ: 15/11/2024'
+        )
+    
+    def test_parse_sms_with_arabic_indic_numerals(self):
+        """Test parsing SMS with Arabic-Indic numerals."""
+        parser = RegexParserEngine(templates_file=self.test_templates_file)
+        
+        # Arabic SMS with Arabic-Indic numerals
+        sms = "تم خصم ١٥٠ جنيه من بطاقة رقم ٥٦٧٨"
+        result = parser.parse_sms(sms, bank_id='HSBC')
+        
+        # Numerals should be converted automatically
+        self.assertEqual(result['amount'], '150')
+        self.assertEqual(result['card_suffix'], '5678')
+        self.assertEqual(result['currency'], 'جنيه')
+    
+    def test_parse_sms_with_arabic_indic_decimals(self):
+        """Test parsing SMS with Arabic-Indic numerals and decimal separator."""
+        parser = RegexParserEngine(templates_file=self.test_templates_file)
+        
+        # Create a template that supports decimal amounts
+        test_templates = {
+            'TEST_BANK': [
+                {
+                    'name': 'Test with decimals',
+                    'patterns': {
+                        'amount': r'(?:مبلغ|خصم)\s+(?P<amount>[\d٠-٩]+(?:[.,٫][\d٠-٩]{2})?)',
+                        'currency': r'(?P<currency>جنيه|دولار)',
+                    },
+                    'required_fields': ['amount']
+                }
+            ]
+        }
+        
+        import tempfile
+        import yaml
+        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8')
+        yaml.dump(test_templates, temp_file, allow_unicode=True)
+        temp_file.close()
+        
+        parser = RegexParserEngine(templates_file=temp_file.name)
+        
+        # Arabic SMS with decimal amount in Arabic-Indic numerals
+        sms = "تم خصم مبلغ ١٥٠٫٥٠ جنيه"
+        result = parser.parse_sms(sms, bank_id='TEST_BANK')
+        
+        # Should convert ١٥٠٫٥٠ to 150.50
+        self.assertEqual(result['amount'], '150.50')
+        self.assertEqual(result['currency'], 'جنيه')
+        
+        # Clean up
+        import os
+        os.unlink(temp_file.name)
+    
+    def test_parse_sms_with_arabic_indic_date(self):
+        """Test parsing SMS with Arabic-Indic numerals in date."""
+        parser = RegexParserEngine(templates_file=self.test_templates_file)
+        
+        # Create a template for date matching
+        test_templates = {
+            'TEST_BANK': [
+                {
+                    'name': 'Test with date',
+                    'patterns': {
+                        'amount': r'(?:مبلغ)\s+(?P<amount>[\d٠-٩]+)',
+                        'date': r'(?:بتاريخ)\s+(?P<date>[\d٠-٩]{2}/[\d٠-٩]{2}/[\d٠-٩]{4})',
+                    },
+                    'required_fields': ['amount']
+                }
+            ]
+        }
+        
+        import tempfile
+        import yaml
+        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8')
+        yaml.dump(test_templates, temp_file, allow_unicode=True)
+        temp_file.close()
+        
+        parser = RegexParserEngine(templates_file=temp_file.name)
+        
+        # Arabic SMS with date in Arabic-Indic numerals
+        sms = "تم دفع مبلغ ٢٥٠ بتاريخ ١٥/١١/٢٠٢٤"
+        result = parser.parse_sms(sms, bank_id='TEST_BANK')
+        
+        # Both amount and date should be converted
+        self.assertEqual(result['amount'], '250')
+        self.assertEqual(result['date'], '15/11/2024')
+        
+        # Clean up
+        import os
+        os.unlink(temp_file.name)
+    
+    def test_parse_sms_mixed_western_and_arabic_indic(self):
+        """Test parsing SMS with both Western and Arabic-Indic numerals."""
+        parser = RegexParserEngine(templates_file=self.test_templates_file)
+        
+        # Create a template that matches both
+        test_templates = {
+            'TEST_BANK': [
+                {
+                    'name': 'Test mixed numerals',
+                    'patterns': {
+                        'amount': r'(?:Amount|مبلغ)\s+(?P<amount>[\d٠-٩]+(?:[.,٫][\d٠-٩]{2})?)',
+                        'card_suffix': r'(?:card|بطاقة)\s+(?P<card_suffix>[\d٠-٩]{4})',
+                    },
+                    'required_fields': ['amount']
+                }
+            ]
+        }
+        
+        import tempfile
+        import yaml
+        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8')
+        yaml.dump(test_templates, temp_file, allow_unicode=True)
+        temp_file.close()
+        
+        parser = RegexParserEngine(templates_file=temp_file.name)
+        
+        # Mixed SMS: card number in Arabic-Indic, amount in Western
+        sms = "بطاقة ١٢٣٤ Amount 250.50"
+        result = parser.parse_sms(sms, bank_id='TEST_BANK')
+        
+        # Both should work
+        self.assertEqual(result['card_suffix'], '1234')
+        self.assertEqual(result['amount'], '250.50')
+        
+        # Clean up
+        import os
+        os.unlink(temp_file.name)
+    
+    def test_batch_parse_with_arabic_indic_numerals(self):
+        """Test batch parsing with Arabic-Indic numerals."""
+        parser = RegexParserEngine(templates_file=self.test_templates_file)
+        
+        messages = [
+            "تم خصم ١٥٠ جنيه من بطاقة رقم ٥٦٧٨",
+            "خصم ٢٥٠ جنيه في محل ABC",
+            "Card ending 1234 charged 300 EGP"  # Normal Western numerals
+        ]
+        
+        results = parser.parse_sms_batch(messages, bank_ids=['HSBC', 'HSBC', 'HSBC'])
+        
+        # First message: Arabic-Indic numerals converted
+        self.assertEqual(results[0]['amount'], '150')
+        self.assertEqual(results[0]['card_suffix'], '5678')
+        
+        # Second message: Arabic-Indic numerals converted
+        self.assertEqual(results[1]['amount'], '250')
+        
+        # Third message: Western numerals preserved
+        self.assertEqual(results[2]['amount'], '300')
+        self.assertEqual(results[2]['card_suffix'], '1234')
 
 
 if __name__ == '__main__':
