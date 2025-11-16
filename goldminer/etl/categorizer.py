@@ -255,8 +255,13 @@ class Categorizer:
             for fuzzy_merchant in fuzzy_merchants:
                 fuzzy_merchant_lower = fuzzy_merchant.lower().strip()
                 
-                # Use token_sort_ratio for better matching
-                score = fuzz.token_sort_ratio(merchant_lower, fuzzy_merchant_lower)
+                # Use multiple fuzzy matching algorithms and take the best score
+                token_sort = fuzz.token_sort_ratio(merchant_lower, fuzzy_merchant_lower)
+                token_set = fuzz.token_set_ratio(merchant_lower, fuzzy_merchant_lower)
+                partial = fuzz.partial_ratio(merchant_lower, fuzzy_merchant_lower)
+                
+                # Take the maximum score from different algorithms
+                score = max(token_sort, token_set, partial)
                 
                 # Also check if fuzzy merchant is contained in the actual merchant
                 if fuzzy_merchant_lower in merchant_lower:
