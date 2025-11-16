@@ -1,0 +1,140 @@
+# Bank SMS Pattern Recognition Configuration
+# Each bank ID maps to a list of keywords or regex fragments
+# that commonly appear in that bank's SMS alerts
+
+# Egyptian Banks
+HSBC:
+  - "HSBC"
+  - "Your HSBC card"
+  - "HSBC Egypt"
+  - "hsbc\\.com"
+  - "HSBC Bank"
+
+CIB:
+  - "CIB"
+  - "بطاقتك من CIB"
+  - "Commercial International Bank"
+  - "CIB Egypt"
+  - "CIB Card"
+  - "CIB-"
+
+NBE:
+  - "NBE"
+  - "National Bank of Egypt"
+  - "البنك الأهلي"
+  - "NBE Card"
+  - "الاهلى المصرى"
+
+Banque_Misr:
+  - "Banque Misr"
+  - "بنك مصر"
+  - "BM-"
+  - "Banque-Misr"
+
+QNB:
+  - "QNB"
+  - "بنك قطر الوطنى"
+  - "QNB ALAHLI"
+  - "QNB Egypt"
+  - "QNBALAHLI"
+
+Alex_Bank:
+  - "Alex Bank"
+  - "بنك الإسكندرية"
+  - "AlexBank"
+  - "Bank of Alexandria"
+
+Banque_Du_Caire:
+  - "Banque Du Caire"
+  - "بنك القاهرة"
+  - "BDC"
+  - "Banque-Du-Caire"
+
+AAIB:
+  - "AAIB"
+  - "Arab African"
+  - "Arab African International Bank"
+  - "البنك العربي الافريقي"
+
+SAIB:
+  - "SAIB"
+  - "Societe Arabe"
+  - "البنك العربي الدولي"
+  - "SAIB Bank"
+
+ADIB:
+  - "ADIB"
+  - "Abu Dhabi Islamic"
+  - "ابو ظبى الاسلامى"
+  - "ADIB Egypt"
+
+Faisal_Islamic:
+  - "Faisal Islamic"
+  - "بنك فيصل"
+  - "Faisal Bank"
+
+Emirates_NBD:
+  - "Emirates NBD"
+  - "بنك الإمارات"
+  - "ENBD"
+
+BLOM:
+  - "BLOM"
+  - "بلوم بنك"
+  - "BLOM Bank"
+
+Credit_Agricole:
+  - "Credit Agricole"
+  - "كريدى اجريكول"
+  - "CA Egypt"
+
+# International Banks Operating in Egypt
+Citibank:
+  - "Citibank"
+  - "Citi"
+  - "سيتى بنك"
+  - "CitiBank Egypt"
+
+Barclays:
+  - "Barclays"
+  - "باركليز"
+
+Standard_Chartered:
+  - "Standard Chartered"
+  - "ستاندرد تشارترد"
+  - "SCB"
+
+# Mobile Wallets (often act like banks)
+Vodafone_Cash:
+  - "Vodafone Cash"
+  - "فودافون كاش"
+  - "VF Cash"
+
+Etisalat_Cash:
+  - "Etisalat Cash"
+  - "اتصالات كاش"
+
+Orange_Cash:
+  - "Orange Cash"
+  - "اورنج كاش"
+
+# Payment Services
+Fawry:
+  - "Fawry"
+  - "فورى"
+  - "FAWRY"
+
+Masary:
+  - "Masary"
+  - "مصاري"
+  - "Masary Payment"
+
+# Generic patterns that might indicate a bank
+Generic_Bank:
+  - "بطاقة"
+  - "card ending"
+  - "account ending"
+  - "تم الخصم"
+  - "تم الإيداع"
+  - "balance is"
+  - "رصيدك"
