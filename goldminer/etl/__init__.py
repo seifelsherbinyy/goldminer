@@ -1,5 +1,5 @@
 """ETL pipeline modules."""
-from .ingest import DataIngestion
+from .ingest import DataIngestion, load_sms_messages
 from .schema import SchemaInference
 from .normalize import DataNormalizer
 from .clean import DataCleaner
@@ -8,6 +8,7 @@ from .pipeline import ETLPipeline
 
 __all__ = [
     "DataIngestion",
+    "load_sms_messages",
     "SchemaInference",
     "DataNormalizer",
     "DataCleaner",
