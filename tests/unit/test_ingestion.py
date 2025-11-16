@@ -252,6 +252,158 @@ class TestLoadSMSMessages(unittest.TestCase):
         self.assertEqual(messages[0], 'Message with leading space')
         self.assertEqual(messages[1], 'Message with trailing space')
         self.assertEqual(messages[2], 'Message with both')
+    
+    def test_unicode_normalization(self):
+        """Test that Unicode RTL marks and invisible characters are removed."""
+        txt_path = os.path.join(self.temp_dir, 'unicode.txt')
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            # Include messages with various invisible Unicode characters
+            f.write('Message with RTL mark\u200e here\n')
+            f.write('Text\u200f with\u200f multiple marks\n')
+            f.write('Zero\u200b width\u200b space\n')
+            f.write('Zero\u200c width\u200d joiner\n')
+            f.write('\ufeffBOM character at start')
+        
+        messages = load_sms_messages(txt_path)
+        
+        self.assertEqual(len(messages), 5)
+        # Verify invisible characters are removed
+        self.assertEqual(messages[0], 'Message with RTL mark here')
+        self.assertEqual(messages[1], 'Text with multiple marks')
+        self.assertEqual(messages[2], 'Zero width space')
+        self.assertEqual(messages[3], 'Zero width joiner')
+        self.assertEqual(messages[4], 'BOM character at start')
+    
+    def test_multiple_spaces_normalized(self):
+        """Test that multiple consecutive spaces are replaced with single space."""
+        txt_path = os.path.join(self.temp_dir, 'spaces.txt')
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write('Multiple   spaces   here\n')
+            f.write('Even    more     spaces\n')
+            f.write('Tab\t\tcharacters   and  spaces')
+        
+        messages = load_sms_messages(txt_path)
+        
+        self.assertEqual(len(messages), 3)
+        self.assertEqual(messages[0], 'Multiple spaces here')
+        self.assertEqual(messages[1], 'Even more spaces')
+        # Note: Tabs are preserved by strip(), but multiple spaces are normalized
+        self.assertIn('Tab', messages[2])
+    
+    def test_duplicate_removal(self):
+        """Test that duplicate messages are removed."""
+        txt_path = os.path.join(self.temp_dir, 'duplicates.txt')
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write('Unique message 1\n')
+            f.write('Duplicate message\n')
+            f.write('Unique message 2\n')
+            f.write('Duplicate message\n')
+            f.write('Duplicate message\n')
+            f.write('Unique message 3')
+        
+        messages = load_sms_messages(txt_path)
+        
+        # Should have only 4 unique messages
+        self.assertEqual(len(messages), 4)
+        self.assertEqual(messages[0], 'Unique message 1')
+        self.assertEqual(messages[1], 'Duplicate message')
+        self.assertEqual(messages[2], 'Unique message 2')
+        self.assertEqual(messages[3], 'Unique message 3')
+        
+        # Verify no duplicates in result
+        self.assertEqual(len(messages), len(set(messages)))
+    
+    def test_duplicate_removal_after_sanitization(self):
+        """Test that duplicates are identified after sanitization."""
+        txt_path = os.path.join(self.temp_dir, 'sanitized_duplicates.txt')
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            # These should all become the same after sanitization
+            f.write('Hello World\n')
+            f.write('  Hello World  \n')
+            f.write('Hello\u200e World\n')
+            f.write('Hello   World\n')
+            f.write('Unique message')
+        
+        messages = load_sms_messages(txt_path)
+        
+        # Should have only 2 unique messages after sanitization
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages[0], 'Hello World')
+        self.assertEqual(messages[1], 'Unique message')
+    
+    def test_sanitization_preserves_valid_content(self):
+        """Test that sanitization preserves valid message content."""
+        txt_path = os.path.join(self.temp_dir, 'valid_content.txt')
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write('Email: test@example.com\n')
+            f.write('URL: https://example.com/path\n')
+            f.write('Price: $99.99 for 2 items\n')
+            f.write('Emoji message 😊🎉👍\n')
+            f.write('Special chars: !@#$%^&*()')
+        
+        messages = load_sms_messages(txt_path)
+        
+        self.assertEqual(len(messages), 5)
+        self.assertIn('test@example.com', messages[0])
+        self.assertIn('https://example.com/path', messages[1])
+        self.assertIn('$99.99', messages[2])
+        self.assertIn('😊', messages[3])
+        self.assertIn('!@#$%^&*()', messages[4])
+    
+    def test_empty_messages_filtered_after_sanitization(self):
+        """Test that messages that become empty after sanitization are filtered."""
+        txt_path = os.path.join(self.temp_dir, 'empty_after_sanitization.txt')
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write('Valid message\n')
+            f.write('\u200e\u200f\u200b\n')  # Only invisible characters
+            f.write('   \n')  # Only spaces
+            f.write('Another valid message')
+        
+        messages = load_sms_messages(txt_path)
+        
+        # Should only have 2 valid messages
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages[0], 'Valid message')
+        self.assertEqual(messages[1], 'Another valid message')
+    
+    def test_json_duplicate_removal(self):
+        """Test that duplicate removal works for JSON files."""
+        json_path = os.path.join(self.temp_dir, 'duplicates.json')
+        messages_data = [
+            'Message 1',
+            'Message 2',
+            'Message 1',  # Duplicate
+            'Message 3',
+            'Message 2'   # Duplicate
+        ]
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(messages_data, f)
+        
+        messages = load_sms_messages(json_path)
+        
+        # Should have only 3 unique messages
+        self.assertEqual(len(messages), 3)
+        self.assertEqual(messages[0], 'Message 1')
+        self.assertEqual(messages[1], 'Message 2')
+        self.assertEqual(messages[2], 'Message 3')
+    
+    def test_json_unicode_normalization(self):
+        """Test Unicode normalization in JSON files."""
+        json_path = os.path.join(self.temp_dir, 'unicode.json')
+        messages_data = [
+            'Text\u200e with RTL',
+            'Multiple\u200b\u200binvisible chars',
+            '\ufeffWith BOM'
+        ]
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(messages_data, f, ensure_ascii=False)
+        
+        messages = load_sms_messages(json_path)
+        
+        self.assertEqual(len(messages), 3)
+        self.assertEqual(messages[0], 'Text with RTL')
+        self.assertEqual(messages[1], 'Multipleinvisible chars')
+        self.assertEqual(messages[2], 'With BOM')
 
 
 if __name__ == '__main__':
