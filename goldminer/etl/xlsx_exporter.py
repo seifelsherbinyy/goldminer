@@ -38,11 +38,19 @@ class XLSXExporter:
         """Initialize the XLSX exporter."""
         self.logger = setup_logger(__name__)
         
-        # Define styling constants
-        self.header_font = Font(bold=True, color="FFFFFF", size=11)
-        self.header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-        self.anomaly_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        # Define reusable style templates for professional appearance
+        # Font: Calibri 11pt (sans-serif) for all cells
+        self.default_font = Font(name="Calibri", size=11)
+        
+        # Header style: Dark gray background with white bold text
+        self.header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
+        self.header_fill = PatternFill(start_color="404040", end_color="404040", fill_type="solid")
         self.header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        
+        # Alternating row shading for data tables (light gray)
+        self.alternating_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+        
+        # Border style for all cells
         self.border = Border(
             left=Side(style='thin'),
             right=Side(style='thin'),
@@ -50,9 +58,17 @@ class XLSXExporter:
             bottom=Side(style='thin')
         )
         
+        # Currency/numeric cell style
+        self.currency_font = Font(name="Calibri", size=11)
+        self.currency_format = numbers.FORMAT_CURRENCY_USD_SIMPLE
+        
+        # Tagged text style (for anomaly tags)
+        self.tag_font = Font(name="Calibri", size=11, italic=True, color="D9534F")
+        self.anomaly_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        
         # Define urgency-based formatting styles
         self.urgency_high_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
-        self.urgency_high_font = Font(bold=True, color="FFFFFF")
+        self.urgency_high_font = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
         self.urgency_medium_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
         self.urgency_low_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
         
@@ -225,6 +241,35 @@ class XLSXExporter:
         
         self.logger.info(f"Applied anomaly borders to rows with flags in column {anomaly_col_letter}")
     
+    def _apply_alternating_row_shading(self, ws, start_row: int, end_row: int, 
+                                        start_col: int, end_col: int) -> None:
+        """
+        Apply alternating light gray shading to data rows for better scannability.
+        
+        This creates a professional, easy-to-read table with zebra striping.
+        
+        Args:
+            ws: Worksheet object
+            start_row: First data row (usually 2, after header)
+            end_row: Last data row
+            start_col: First column to shade
+            end_col: Last column to shade
+        """
+        if end_row < start_row:
+            return
+        
+        # Apply light gray fill to every other row
+        for row_idx in range(start_row, end_row + 1):
+            # Apply shading to even rows (0-indexed, so row 2, 4, 6, etc.)
+            if (row_idx - start_row) % 2 == 1:
+                for col_idx in range(start_col, end_col + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    # Only apply if cell doesn't already have a fill (preserve urgency formatting)
+                    if cell.fill.patternType is None or cell.fill.start_color.rgb in ['00000000', 'FFFFFFFF']:
+                        cell.fill = self.alternating_fill
+        
+        self.logger.info(f"Applied alternating row shading to rows {start_row}-{end_row}")
+    
     def export_to_excel(self, transactions: List[Dict[str, Any]], filename: str) -> None:
         """
         Export transactions to a well-formatted Excel workbook.
@@ -300,11 +345,23 @@ class XLSXExporter:
                     cell.alignment = self.header_alignment
                     cell.border = self.border
                 else:
+                    # Apply default font and border to data cells
+                    cell.font = self.default_font
                     cell.border = self.border
                     
                     # Apply currency formatting to amount column
                     if available_columns[c_idx - 1] == 'amount' and value is not None:
-                        cell.number_format = numbers.FORMAT_CURRENCY_USD_SIMPLE
+                        cell.number_format = self.currency_format
+                        cell.font = self.currency_font
+        
+        # Apply alternating row shading (before conditional formatting)
+        self._apply_alternating_row_shading(
+            ws,
+            start_row=2,
+            end_row=len(df_subset) + 1,
+            start_col=1,
+            end_col=len(available_columns)
+        )
         
         # Apply conditional formatting for urgency (if urgency column exists)
         if 'urgency' in available_columns:
@@ -387,7 +444,7 @@ class XLSXExporter:
         
         # Write monthly totals section
         ws['A1'] = 'Monthly Transaction Summary'
-        ws['A1'].font = Font(bold=True, size=14)
+        ws['A1'].font = Font(name="Calibri", bold=True, size=14)
         ws.merge_cells('A1:D1')
         
         # Write headers and data for monthly totals
@@ -399,18 +456,35 @@ class XLSXExporter:
                     cell.font = self.header_font
                     cell.fill = self.header_fill
                     cell.alignment = self.header_alignment
+                    cell.border = self.border
                 else:
+                    # Apply default font and border
+                    cell.font = self.default_font
+                    cell.border = self.border
+                    
                     if c_idx in [2, 3]:  # Total and Average columns
-                        cell.number_format = numbers.FORMAT_CURRENCY_USD_SIMPLE
+                        cell.number_format = self.currency_format
+                        cell.font = self.currency_font
+        
+        # Apply alternating row shading to monthly totals
+        monthly_totals_end_row = row_idx + len(monthly_totals)
+        self._apply_alternating_row_shading(
+            ws,
+            start_row=row_idx + 1,
+            end_row=monthly_totals_end_row,
+            start_col=1,
+            end_col=4
+        )
         
         # Write category breakdown if available
         if 'category' in df_copy.columns:
             row_idx = len(monthly_totals) + 6
             ws.cell(row=row_idx, column=1, value='Spending by Category')
-            ws.cell(row=row_idx, column=1).font = Font(bold=True, size=12)
+            ws.cell(row=row_idx, column=1).font = Font(name="Calibri", bold=True, size=12)
             
             row_idx += 2
             category_pivot_reset = category_pivot.reset_index()
+            category_start_row = row_idx
             for r_idx, row in enumerate(dataframe_to_rows(category_pivot_reset, index=False, header=True), row_idx):
                 for c_idx, value in enumerate(row, 1):
                     cell = ws.cell(row=r_idx, column=c_idx, value=value)
@@ -418,8 +492,25 @@ class XLSXExporter:
                         cell.font = self.header_font
                         cell.fill = self.header_fill
                         cell.alignment = self.header_alignment
-                    elif c_idx > 1:  # Amount columns
-                        cell.number_format = numbers.FORMAT_CURRENCY_USD_SIMPLE
+                        cell.border = self.border
+                    else:
+                        # Apply default font and border
+                        cell.font = self.default_font
+                        cell.border = self.border
+                        
+                        if c_idx > 1:  # Amount columns
+                            cell.number_format = self.currency_format
+                            cell.font = self.currency_font
+            
+            # Apply alternating row shading to category breakdown
+            category_end_row = row_idx + len(category_pivot_reset)
+            self._apply_alternating_row_shading(
+                ws,
+                start_row=category_start_row + 1,
+                end_row=category_end_row,
+                start_col=1,
+                end_col=len(category_pivot_reset.columns)
+            )
         
         # Freeze top rows
         ws.freeze_panes = ws['A4']
@@ -476,11 +567,23 @@ class XLSXExporter:
                     cell.alignment = self.header_alignment
                     cell.border = self.border
                 else:
+                    # Apply default font and border to data cells
+                    cell.font = self.default_font
                     cell.border = self.border
                     
                     # Apply currency formatting to amount column
                     if available_columns[c_idx - 1] == 'amount' and value is not None:
-                        cell.number_format = numbers.FORMAT_CURRENCY_USD_SIMPLE
+                        cell.number_format = self.currency_format
+                        cell.font = self.currency_font
+        
+        # Apply alternating row shading (before conditional formatting)
+        self._apply_alternating_row_shading(
+            ws,
+            start_row=2,
+            end_row=len(df_subset) + 1,
+            start_col=1,
+            end_col=len(available_columns)
+        )
         
         # Apply conditional formatting for urgency (if urgency column exists)
         if 'urgency' in available_columns:

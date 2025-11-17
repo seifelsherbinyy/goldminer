@@ -311,6 +311,126 @@ class TestXLSXExporter(unittest.TestCase):
         # Verify all sheets are created
         wb = load_workbook(output_file)
         self.assertEqual(len(wb.sheetnames), 3)
+    
+    def test_header_styling_dark_gray(self):
+        """Test headers use dark gray background (professional theme)."""
+        output_file = os.path.join(self.temp_dir, 'test_header_color.xlsx')
+        
+        self.exporter.export_to_excel(self.sample_transactions, output_file)
+        
+        wb = load_workbook(output_file)
+        ws = wb['Transactions']
+        
+        # Check header cell background color
+        header_cell = ws['A1']
+        fill_color = header_cell.fill.start_color.rgb
+        
+        # Should be dark gray (#404040), not blue
+        self.assertEqual(fill_color, '00404040')
+        self.assertNotEqual(fill_color, '00366092')  # Old blue color
+    
+    def test_calibri_font_consistency(self):
+        """Test all cells use Calibri font."""
+        output_file = os.path.join(self.temp_dir, 'test_calibri_font.xlsx')
+        
+        self.exporter.export_to_excel(self.sample_transactions, output_file)
+        
+        wb = load_workbook(output_file)
+        
+        for sheet_name in ['Transactions', 'Anomalies']:
+            ws = wb[sheet_name]
+            
+            # Check header font
+            header_cell = ws['A1']
+            self.assertEqual(header_cell.font.name, 'Calibri')
+            self.assertEqual(header_cell.font.size, 11)
+            
+            # Check data cell font (if exists)
+            if ws.max_row > 1:
+                data_cell = ws['A2']
+                if data_cell.value is not None:
+                    self.assertEqual(data_cell.font.name, 'Calibri')
+                    self.assertEqual(data_cell.font.size, 11)
+    
+    def test_alternating_row_shading(self):
+        """Test alternating row shading is applied to data tables."""
+        output_file = os.path.join(self.temp_dir, 'test_alternating_rows.xlsx')
+        
+        self.exporter.export_to_excel(self.sample_transactions, output_file)
+        
+        wb = load_workbook(output_file)
+        ws = wb['Transactions']
+        
+        # Check that some rows have shading
+        has_shading = False
+        for row_idx in range(2, min(10, ws.max_row + 1)):
+            cell = ws.cell(row=row_idx, column=1)
+            if cell.fill.start_color.rgb and cell.fill.start_color.rgb not in ['00000000', 'FFFFFFFF']:
+                has_shading = True
+                break
+        
+        self.assertTrue(has_shading, "No alternating row shading detected")
+    
+    def test_alternating_row_pattern(self):
+        """Test that alternating row shading follows odd/even pattern."""
+        output_file = os.path.join(self.temp_dir, 'test_alternating_pattern.xlsx')
+        
+        self.exporter.export_to_excel(self.sample_transactions, output_file)
+        
+        wb = load_workbook(output_file)
+        ws = wb['Transactions']
+        
+        # Check pattern: row 2 should be white, row 3 should be shaded, row 4 white, etc.
+        row2_fill = ws.cell(row=2, column=1).fill.start_color.rgb
+        row3_fill = ws.cell(row=3, column=1).fill.start_color.rgb
+        
+        # The pattern should be different (one shaded, one not)
+        self.assertNotEqual(row2_fill, row3_fill)
+    
+    def test_reusable_style_templates(self):
+        """Test that style templates are properly defined and reusable."""
+        # Check that exporter has all required style templates
+        self.assertIsNotNone(self.exporter.default_font)
+        self.assertIsNotNone(self.exporter.header_font)
+        self.assertIsNotNone(self.exporter.header_fill)
+        self.assertIsNotNone(self.exporter.alternating_fill)
+        self.assertIsNotNone(self.exporter.currency_font)
+        self.assertIsNotNone(self.exporter.tag_font)
+        
+        # Verify font names
+        self.assertEqual(self.exporter.default_font.name, 'Calibri')
+        self.assertEqual(self.exporter.header_font.name, 'Calibri')
+        self.assertEqual(self.exporter.currency_font.name, 'Calibri')
+        self.assertEqual(self.exporter.tag_font.name, 'Calibri')
+        
+        # Verify header styling
+        self.assertEqual(self.exporter.header_fill.start_color.rgb, '00404040')
+        self.assertTrue(self.exporter.header_font.bold)
+    
+    def test_consistency_across_sheets(self):
+        """Test styling consistency across all three sheets."""
+        output_file = os.path.join(self.temp_dir, 'test_consistency.xlsx')
+        
+        self.exporter.export_to_excel(self.sample_transactions, output_file)
+        
+        wb = load_workbook(output_file)
+        
+        # Check each sheet has consistent styling
+        for sheet_name in ['Transactions', 'Anomalies']:
+            ws = wb[sheet_name]
+            
+            # Check freeze panes
+            self.assertIsNotNone(ws.freeze_panes)
+            
+            # Check header styling
+            header_cell = ws['A1']
+            self.assertTrue(header_cell.font.bold)
+            self.assertEqual(header_cell.font.name, 'Calibri')
+            
+            # Check column widths are adjusted
+            adjusted_widths = sum(1 for col in ws.column_dimensions.values() 
+                                 if col.width and col.width > 8.43)
+            self.assertGreater(adjusted_widths, 0)
 
 
 if __name__ == '__main__':
