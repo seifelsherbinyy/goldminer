@@ -1,8 +1,12 @@
 """Transaction database management module for persistent storage using SQLite."""
 import sqlite3
 import uuid
-from typing import Dict, List, Optional, Any, Union
+import hashlib
+import json
+import time
+from typing import Dict, List, Optional, Any, Union, Literal
 from datetime import datetime
+from collections import defaultdict
 from goldminer.utils import setup_logger
 
 
@@ -391,3 +395,365 @@ class TransactionDB:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
+    
+    def _compute_transaction_hash(self, transaction: Dict[str, Any]) -> str:
+        """
+        Compute a hash for a transaction based on its composite key.
+        
+        Args:
+            transaction: Transaction dictionary
+            
+        Returns:
+            SHA256 hash of composite key (date, amount, payee, account_id)
+        """
+        # Extract key fields for hashing
+        date = str(transaction.get('date', ''))
+        amount = str(transaction.get('amount', ''))
+        payee = str(transaction.get('payee', ''))
+        account_id = str(transaction.get('account_id', ''))
+        
+        # Create composite key string
+        composite_key = f"{date}|{amount}|{payee}|{account_id}"
+        
+        # Compute hash
+        return hashlib.sha256(composite_key.encode('utf-8')).hexdigest()
+    
+    def _transaction_exists(self, transaction: Dict[str, Any]) -> Optional[str]:
+        """
+        Check if a transaction exists based on composite key.
+        
+        Args:
+            transaction: Transaction dictionary
+            
+        Returns:
+            Transaction ID if exists, None otherwise
+        """
+        cursor = self.connection.cursor()
+        cursor.execute("""
+            SELECT id FROM transactions 
+            WHERE date = ? AND amount = ? AND payee = ? AND account_id = ?
+        """, (
+            transaction.get('date'),
+            transaction.get('amount'),
+            transaction.get('payee'),
+            transaction.get('account_id')
+        ))
+        
+        result = cursor.fetchone()
+        return result[0] if result else None
+    
+    def insert_transaction(
+        self, 
+        transaction: Dict[str, Any], 
+        mode: Literal['skip', 'upsert'] = 'skip'
+    ) -> Dict[str, Any]:
+        """
+        Insert a transaction with duplicate checking and configurable conflict resolution.
+        
+        Args:
+            transaction: Dictionary containing transaction data
+            mode: Conflict resolution mode:
+                - 'skip': Skip duplicate transactions (default)
+                - 'upsert': Update existing transaction if duplicate found
+                
+        Returns:
+            Dictionary with:
+                - 'id': Transaction ID (UUID)
+                - 'status': 'inserted', 'skipped', or 'updated'
+                - 'message': Description of the action taken
+                
+        Raises:
+            Exception: If database operation fails (transaction will be rolled back)
+        """
+        try:
+            # Check if transaction exists
+            existing_id = self._transaction_exists(transaction)
+            
+            if existing_id:
+                if mode == 'skip':
+                    self.logger.info(
+                        f"Skipping duplicate transaction: {transaction.get('payee')} "
+                        f"on {transaction.get('date')} for {transaction.get('amount')}"
+                    )
+                    return {
+                        'id': existing_id,
+                        'status': 'skipped',
+                        'message': 'Duplicate transaction skipped'
+                    }
+                elif mode == 'upsert':
+                    # Update existing transaction with new data
+                    update_fields = {k: v for k, v in transaction.items() if k != 'id'}
+                    self.update(existing_id, update_fields)
+                    self.logger.info(
+                        f"Updated duplicate transaction: {existing_id}"
+                    )
+                    return {
+                        'id': existing_id,
+                        'status': 'updated',
+                        'message': 'Duplicate transaction updated'
+                    }
+            
+            # No duplicate found, insert new transaction
+            transaction_id = self.insert(transaction)
+            return {
+                'id': transaction_id,
+                'status': 'inserted',
+                'message': 'Transaction inserted successfully'
+            }
+            
+        except Exception as e:
+            self.connection.rollback()
+            self.logger.error(f"Failed to insert transaction: {str(e)}")
+            raise
+    
+    def bulk_insert(
+        self,
+        transactions: List[Dict[str, Any]],
+        mode: Literal['skip', 'upsert'] = 'skip'
+    ) -> Dict[str, Any]:
+        """
+        Bulk insert transactions with duplicate checking and performance tracking.
+        
+        Args:
+            transactions: List of transaction dictionaries
+            mode: Conflict resolution mode ('skip' or 'upsert')
+            
+        Returns:
+            Dictionary with:
+                - 'inserted': Number of transactions inserted
+                - 'updated': Number of transactions updated
+                - 'skipped': Number of transactions skipped
+                - 'failed': Number of failed transactions
+                - 'duration': Time taken in seconds
+                - 'transactions_per_second': Insert rate
+                - 'details': List of failed transaction details
+                
+        Raises:
+            Exception: If critical database operation fails (all changes rolled back)
+        """
+        start_time = time.time()
+        stats = {
+            'inserted': 0,
+            'updated': 0,
+            'skipped': 0,
+            'failed': 0,
+            'details': []
+        }
+        
+        try:
+            # Begin transaction for atomicity
+            cursor = self.connection.cursor()
+            cursor.execute("BEGIN TRANSACTION")
+            
+            for idx, transaction in enumerate(transactions):
+                try:
+                    result = self.insert_transaction(transaction, mode=mode)
+                    
+                    if result['status'] == 'inserted':
+                        stats['inserted'] += 1
+                    elif result['status'] == 'updated':
+                        stats['updated'] += 1
+                    elif result['status'] == 'skipped':
+                        stats['skipped'] += 1
+                        
+                except Exception as e:
+                    stats['failed'] += 1
+                    stats['details'].append({
+                        'index': idx,
+                        'transaction': transaction,
+                        'error': str(e)
+                    })
+                    self.logger.warning(
+                        f"Failed to process transaction at index {idx}: {str(e)}"
+                    )
+            
+            # Commit all changes
+            self.connection.commit()
+            
+            # Calculate performance metrics
+            duration = time.time() - start_time
+            total_processed = stats['inserted'] + stats['updated'] + stats['skipped']
+            tps = total_processed / duration if duration > 0 else 0
+            
+            stats['duration'] = round(duration, 3)
+            stats['transactions_per_second'] = round(tps, 2)
+            
+            self.logger.info(
+                f"Bulk insert completed: {stats['inserted']} inserted, "
+                f"{stats['updated']} updated, {stats['skipped']} skipped, "
+                f"{stats['failed']} failed in {duration:.2f}s ({tps:.2f} TPS)"
+            )
+            
+            return stats
+            
+        except Exception as e:
+            # Rollback all changes on critical failure
+            self.connection.rollback()
+            self.logger.error(f"Bulk insert failed, rolled back all changes: {str(e)}")
+            raise
+    
+    def get_summary_by_month(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate monthly summary aggregations for dashboard visualization.
+        
+        Aggregates total spend by:
+        - Category
+        - Account type
+        - Tag
+        
+        Args:
+            start_date: Optional start date filter (ISO format: YYYY-MM-DD)
+            end_date: Optional end date filter (ISO format: YYYY-MM-DD)
+            
+        Returns:
+            Dictionary with monthly aggregations:
+                - 'by_month': Overall monthly totals
+                - 'by_category': Spending by category per month
+                - 'by_account_type': Spending by account type per month
+                - 'by_tag': Spending by tag per month
+        """
+        cursor = self.connection.cursor()
+        
+        # Build date filter
+        date_filter = ""
+        params = []
+        if start_date and end_date:
+            date_filter = "WHERE date >= ? AND date <= ?"
+            params.extend([start_date, end_date])
+        elif start_date:
+            date_filter = "WHERE date >= ?"
+            params.append(start_date)
+        elif end_date:
+            date_filter = "WHERE date <= ?"
+            params.append(end_date)
+        
+        # Get overall monthly totals
+        query = f"""
+            SELECT 
+                strftime('%Y-%m', date) as month,
+                COUNT(*) as transaction_count,
+                SUM(amount) as total_amount,
+                AVG(amount) as avg_amount,
+                MIN(amount) as min_amount,
+                MAX(amount) as max_amount
+            FROM transactions
+            {date_filter}
+            GROUP BY strftime('%Y-%m', date)
+            ORDER BY month
+        """
+        cursor.execute(query, params)
+        
+        by_month = []
+        for row in cursor.fetchall():
+            by_month.append({
+                'month': row[0],
+                'transaction_count': row[1],
+                'total_amount': round(row[2], 2) if row[2] else 0,
+                'avg_amount': round(row[3], 2) if row[3] else 0,
+                'min_amount': round(row[4], 2) if row[4] else 0,
+                'max_amount': round(row[5], 2) if row[5] else 0
+            })
+        
+        # Get spending by category per month
+        query = f"""
+            SELECT 
+                strftime('%Y-%m', date) as month,
+                category,
+                COUNT(*) as transaction_count,
+                SUM(amount) as total_amount
+            FROM transactions
+            {date_filter}
+            GROUP BY strftime('%Y-%m', date), category
+            ORDER BY month, category
+        """
+        cursor.execute(query, params)
+        
+        by_category = defaultdict(lambda: defaultdict(float))
+        for row in cursor.fetchall():
+            month = row[0]
+            category = row[1] or 'Uncategorized'
+            by_category[month][category] = {
+                'transaction_count': row[2],
+                'total_amount': round(row[3], 2) if row[3] else 0
+            }
+        
+        # Convert defaultdict to regular dict
+        by_category = {k: dict(v) for k, v in by_category.items()}
+        
+        # Get spending by account type per month
+        query = f"""
+            SELECT 
+                strftime('%Y-%m', date) as month,
+                account_type,
+                COUNT(*) as transaction_count,
+                SUM(amount) as total_amount
+            FROM transactions
+            {date_filter}
+            GROUP BY strftime('%Y-%m', date), account_type
+            ORDER BY month, account_type
+        """
+        cursor.execute(query, params)
+        
+        by_account_type = defaultdict(lambda: defaultdict(float))
+        for row in cursor.fetchall():
+            month = row[0]
+            account_type = row[1] or 'Unknown'
+            by_account_type[month][account_type] = {
+                'transaction_count': row[2],
+                'total_amount': round(row[3], 2) if row[3] else 0
+            }
+        
+        by_account_type = {k: dict(v) for k, v in by_account_type.items()}
+        
+        # Get spending by tag per month
+        # Note: Tags are comma-separated, so we need to split them
+        if date_filter:
+            tag_filter = f"{date_filter} AND tags IS NOT NULL AND tags != ''"
+        else:
+            tag_filter = "WHERE tags IS NOT NULL AND tags != ''"
+        
+        query = f"""
+            SELECT 
+                strftime('%Y-%m', date) as month,
+                tags,
+                amount
+            FROM transactions
+            {tag_filter}
+            ORDER BY month
+        """
+        cursor.execute(query, params)
+        
+        by_tag = defaultdict(lambda: defaultdict(lambda: {'transaction_count': 0, 'total_amount': 0.0}))
+        for row in cursor.fetchall():
+            month = row[0]
+            tags = row[1]
+            amount = row[2] or 0
+            
+            # Split tags and aggregate
+            if tags:
+                for tag in tags.split(','):
+                    tag = tag.strip()
+                    if tag:
+                        by_tag[month][tag]['transaction_count'] += 1
+                        by_tag[month][tag]['total_amount'] += amount
+        
+        # Round amounts and convert to regular dict
+        by_tag_formatted = {}
+        for month, tags in by_tag.items():
+            by_tag_formatted[month] = {}
+            for tag, data in tags.items():
+                by_tag_formatted[month][tag] = {
+                    'transaction_count': data['transaction_count'],
+                    'total_amount': round(data['total_amount'], 2)
+                }
+        
+        return {
+            'by_month': by_month,
+            'by_category': by_category,
+            'by_account_type': by_account_type,
+            'by_tag': by_tag_formatted
+        }
