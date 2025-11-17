@@ -411,9 +411,14 @@ def _create_summary_sheet(workbook: xlsxwriter.Workbook, df: pd.DataFrame,
         
         merchant_end_row = row - 1
     
-    # Add charts
+    # Add charts with dynamic sizing and styling
     chart_row = 2
     chart_col = 6
+    
+    # Extract year range for dynamic titles
+    min_year = df_copy['date'].dt.year.min()
+    max_year = df_copy['date'].dt.year.max()
+    year_range = f"{min_year}" if min_year == max_year else f"{min_year}–{max_year}"
     
     # 1. Monthly Spend Line Chart
     if len(monthly_totals) > 0:
@@ -422,16 +427,22 @@ def _create_summary_sheet(workbook: xlsxwriter.Workbook, df: pd.DataFrame,
             'name': 'Monthly Spending',
             'categories': ['Summary', monthly_start_row, 0, monthly_end_row, 0],
             'values': ['Summary', monthly_start_row, 1, monthly_end_row, 1],
-            'line': {'color': '#366092', 'width': 2.5}
+            'line': {'color': '#4472C4', 'width': 2.5}
         })
-        line_chart.set_title({'name': 'Monthly Spending Trend'})
-        line_chart.set_x_axis({'name': 'Month'})
-        line_chart.set_y_axis({'name': 'Amount ($)'})
-        line_chart.set_size({'width': 480, 'height': 300})
+        
+        # Dynamic title with year
+        line_chart.set_title({'name': f'Monthly Spend – {year_range}'})
+        line_chart.set_x_axis({'name': 'Month', 'num_font': {'size': 9}})
+        line_chart.set_y_axis({'name': 'Amount ($)', 'num_format': '$#,##0'})
+        
+        # Auto-size based on number of months (min 300, max 500 height)
+        num_months = len(monthly_totals)
+        chart_height = min(500, max(300, 200 + num_months * 15))
+        line_chart.set_size({'width': 500, 'height': chart_height})
         line_chart.set_style(10)
         
         worksheet.insert_chart(chart_row, chart_col, line_chart)
-        chart_row += 16
+        chart_row += int(chart_height / 15) + 2  # Dynamic spacing based on chart height
     
     # 2. Category Breakdown Pie Chart
     if 'category' in df_copy.columns:
@@ -449,33 +460,70 @@ def _create_summary_sheet(workbook: xlsxwriter.Workbook, df: pd.DataFrame,
             worksheet.write(pie_start_row + idx, pie_data_col + 1, total, formats['currency'])
         pie_end_row = pie_start_row + len(category_totals) - 1
         
+        # Excel theme color palette for pie slices
+        theme_colors = [
+            '#4472C4',  # Blue
+            '#ED7D31',  # Orange
+            '#A5A5A5',  # Gray
+            '#FFC000',  # Yellow
+            '#5B9BD5',  # Light Blue
+            '#70AD47',  # Green
+            '#264478',  # Dark Blue
+            '#9E480E',  # Dark Orange
+            '#636363',  # Dark Gray
+            '#997300'   # Dark Yellow
+        ]
+        
         pie_chart = workbook.add_chart({'type': 'pie'})
         pie_chart.add_series({
             'name': 'Category Breakdown',
             'categories': ['Summary', pie_start_row, pie_data_col, pie_end_row, pie_data_col],
             'values': ['Summary', pie_start_row, pie_data_col + 1, pie_end_row, pie_data_col + 1],
-            'data_labels': {'percentage': True}
+            'data_labels': {'percentage': True, 'font': {'size': 9}},
+            'points': [
+                {'fill': {'color': theme_colors[i % len(theme_colors)]}}
+                for i in range(len(category_totals))
+            ]
         })
-        pie_chart.set_title({'name': 'Spending by Category'})
-        pie_chart.set_size({'width': 480, 'height': 300})
+        
+        # Dynamic title with year
+        pie_chart.set_title({'name': f'Category-Wise Expense Share – {year_range}'})
+        
+        # Auto-size based on number of categories (min 300, max 450 height)
+        num_categories = len(category_totals)
+        chart_height = min(450, max(300, 250 + num_categories * 10))
+        pie_chart.set_size({'width': 500, 'height': chart_height})
         pie_chart.set_style(10)
         
         worksheet.insert_chart(chart_row, chart_col, pie_chart)
-        chart_row += 16
+        chart_row += int(chart_height / 15) + 2  # Dynamic spacing
     
     # 3. Merchant Bar Chart (Top 5)
     if 'payee' in df_copy.columns and merchant_end_row >= merchant_start_row:
+        # Excel theme color gradient for bars
+        bar_colors = ['#4472C4', '#5B9BD5', '#70AD47', '#FFC000', '#ED7D31']
+        
         bar_chart = workbook.add_chart({'type': 'bar'})
         bar_chart.add_series({
             'name': 'Spending',
             'categories': ['Summary', merchant_start_row, 0, merchant_end_row, 0],
             'values': ['Summary', merchant_start_row, 1, merchant_end_row, 1],
-            'fill': {'color': '#366092'}
+            'fill': {'color': '#4472C4'},
+            'points': [
+                {'fill': {'color': bar_colors[i % len(bar_colors)]}}
+                for i in range(min(5, merchant_end_row - merchant_start_row + 1))
+            ]
         })
-        bar_chart.set_title({'name': 'Top 5 Merchants by Spending'})
-        bar_chart.set_x_axis({'name': 'Amount ($)'})
-        bar_chart.set_y_axis({'name': 'Merchant'})
-        bar_chart.set_size({'width': 480, 'height': 300})
+        
+        # Dynamic title with year
+        bar_chart.set_title({'name': f'Top 5 Merchants by Volume – {year_range}'})
+        bar_chart.set_x_axis({'name': 'Amount ($)', 'num_format': '$#,##0', 'num_font': {'size': 9}})
+        bar_chart.set_y_axis({'name': 'Merchant', 'num_font': {'size': 9}})
+        
+        # Auto-size based on number of merchants (optimized for top 5)
+        num_merchants = min(5, merchant_end_row - merchant_start_row + 1)
+        chart_height = min(400, max(250, 150 + num_merchants * 40))
+        bar_chart.set_size({'width': 500, 'height': chart_height})
         bar_chart.set_style(10)
         
         worksheet.insert_chart(chart_row, chart_col, bar_chart)
