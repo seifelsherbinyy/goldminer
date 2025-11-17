@@ -467,6 +467,357 @@ class TestTransactionDB(unittest.TestCase):
         print(f"Query time (full-text search): {fts_query_time:.2f}ms")
         # FTS5 may be slightly slower, so we allow up to 150ms
         self.assertLess(fts_query_time, 150, "Full-text search should complete in reasonable time")
+    
+    def test_insert_transaction_skip_mode(self):
+        """Test insert_transaction with skip mode for duplicates."""
+        transaction = {
+            'date': '2024-01-15',
+            'payee': 'Test Store',
+            'amount': 100.0,
+            'account_id': 'acc_001'
+        }
+        
+        # First insert should succeed
+        result = self.db.insert_transaction(transaction, mode='skip')
+        self.assertEqual(result['status'], 'inserted')
+        self.assertIsNotNone(result['id'])
+        first_id = result['id']
+        
+        # Second insert with same key should be skipped
+        result = self.db.insert_transaction(transaction, mode='skip')
+        self.assertEqual(result['status'], 'skipped')
+        self.assertEqual(result['id'], first_id)
+        
+        # Verify only one transaction exists
+        all_txns = self.db.query()
+        self.assertEqual(len(all_txns), 1)
+    
+    def test_insert_transaction_upsert_mode(self):
+        """Test insert_transaction with upsert mode for duplicates."""
+        transaction = {
+            'date': '2024-01-15',
+            'payee': 'Test Store',
+            'amount': 100.0,
+            'account_id': 'acc_001',
+            'category': 'Shopping'
+        }
+        
+        # First insert
+        result = self.db.insert_transaction(transaction, mode='upsert')
+        self.assertEqual(result['status'], 'inserted')
+        first_id = result['id']
+        
+        # Second insert with same key but different category
+        transaction['category'] = 'Food'
+        transaction['confidence'] = 0.95
+        result = self.db.insert_transaction(transaction, mode='upsert')
+        self.assertEqual(result['status'], 'updated')
+        self.assertEqual(result['id'], first_id)
+        
+        # Verify transaction was updated
+        updated_txn = self.db.get_by_id(first_id)
+        self.assertEqual(updated_txn['category'], 'Food')
+        self.assertEqual(updated_txn['confidence'], 0.95)
+        
+        # Verify still only one transaction
+        all_txns = self.db.query()
+        self.assertEqual(len(all_txns), 1)
+    
+    def test_insert_transaction_different_transactions(self):
+        """Test that different transactions are inserted separately."""
+        txn1 = {
+            'date': '2024-01-15',
+            'payee': 'Store A',
+            'amount': 100.0,
+            'account_id': 'acc_001'
+        }
+        
+        txn2 = {
+            'date': '2024-01-15',
+            'payee': 'Store B',  # Different payee
+            'amount': 100.0,
+            'account_id': 'acc_001'
+        }
+        
+        result1 = self.db.insert_transaction(txn1)
+        result2 = self.db.insert_transaction(txn2)
+        
+        self.assertEqual(result1['status'], 'inserted')
+        self.assertEqual(result2['status'], 'inserted')
+        self.assertNotEqual(result1['id'], result2['id'])
+        
+        all_txns = self.db.query()
+        self.assertEqual(len(all_txns), 2)
+    
+    def test_bulk_insert_all_new(self):
+        """Test bulk_insert with all new transactions."""
+        transactions = []
+        for i in range(100):
+            transactions.append({
+                'date': f'2024-01-{(i % 28) + 1:02d}',
+                'payee': f'Store {i}',
+                'amount': 50.0 + i,
+                'account_id': f'acc_{i % 10}',
+                'category': 'Shopping'
+            })
+        
+        result = self.db.bulk_insert(transactions, mode='skip')
+        
+        self.assertEqual(result['inserted'], 100)
+        self.assertEqual(result['updated'], 0)
+        self.assertEqual(result['skipped'], 0)
+        self.assertEqual(result['failed'], 0)
+        self.assertGreater(result['duration'], 0)
+        self.assertGreater(result['transactions_per_second'], 0)
+        
+        # Verify all transactions were inserted
+        all_txns = self.db.query()
+        self.assertEqual(len(all_txns), 100)
+    
+    def test_bulk_insert_with_duplicates_skip(self):
+        """Test bulk_insert with duplicates in skip mode."""
+        transactions = [
+            {
+                'date': '2024-01-15',
+                'payee': 'Store A',
+                'amount': 100.0,
+                'account_id': 'acc_001'
+            },
+            {
+                'date': '2024-01-16',
+                'payee': 'Store B',
+                'amount': 150.0,
+                'account_id': 'acc_002'
+            },
+            {
+                'date': '2024-01-15',  # Duplicate of first
+                'payee': 'Store A',
+                'amount': 100.0,
+                'account_id': 'acc_001'
+            }
+        ]
+        
+        result = self.db.bulk_insert(transactions, mode='skip')
+        
+        self.assertEqual(result['inserted'], 2)
+        self.assertEqual(result['skipped'], 1)
+        self.assertEqual(result['updated'], 0)
+        self.assertEqual(result['failed'], 0)
+        
+        # Verify only 2 transactions exist
+        all_txns = self.db.query()
+        self.assertEqual(len(all_txns), 2)
+    
+    def test_bulk_insert_with_duplicates_upsert(self):
+        """Test bulk_insert with duplicates in upsert mode."""
+        # Insert initial transaction
+        self.db.insert({
+            'date': '2024-01-15',
+            'payee': 'Store A',
+            'amount': 100.0,
+            'account_id': 'acc_001',
+            'category': 'Shopping'
+        })
+        
+        transactions = [
+            {
+                'date': '2024-01-15',
+                'payee': 'Store A',
+                'amount': 100.0,
+                'account_id': 'acc_001',
+                'category': 'Food'  # Updated category
+            },
+            {
+                'date': '2024-01-16',
+                'payee': 'Store B',
+                'amount': 150.0,
+                'account_id': 'acc_002',
+                'category': 'Transport'
+            }
+        ]
+        
+        result = self.db.bulk_insert(transactions, mode='upsert')
+        
+        self.assertEqual(result['updated'], 1)
+        self.assertEqual(result['inserted'], 1)
+        self.assertEqual(result['skipped'], 0)
+        
+        # Verify category was updated
+        updated_txn = self.db.query({'payee': 'Store A'})[0]
+        self.assertEqual(updated_txn['category'], 'Food')
+    
+    def test_bulk_insert_performance_10k_records(self):
+        """Test bulk_insert performance with 10,000+ records."""
+        print("\n\nBulk insert performance test with 10,000 records...")
+        
+        transactions = []
+        for i in range(10000):
+            transactions.append({
+                'date': f'2024-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}',
+                'payee': f'Merchant {i % 500}',
+                'amount': 10.0 + (i % 1000),
+                'account_id': f'acc_{i % 20}',
+                'category': ['Food', 'Transport', 'Shopping', 'Entertainment'][i % 4],
+                'account_type': 'credit' if i % 2 == 0 else 'debit',
+                'currency': 'USD'
+            })
+        
+        result = self.db.bulk_insert(transactions, mode='skip')
+        
+        print(f"Inserted: {result['inserted']}")
+        print(f"Duration: {result['duration']}s")
+        print(f"Throughput: {result['transactions_per_second']} TPS")
+        
+        # Verify performance
+        self.assertEqual(result['inserted'], 10000)
+        self.assertEqual(result['failed'], 0)
+        self.assertGreater(result['transactions_per_second'], 100, 
+                          "Should process at least 100 transactions per second")
+        
+        # Verify all transactions were inserted
+        count = self.db.count()
+        self.assertEqual(count, 10000)
+    
+    def test_bulk_insert_rollback_on_failure(self):
+        """Test that bulk_insert rolls back on critical failure."""
+        # Create transactions with one that will fail critically
+        transactions = [
+            {
+                'date': '2024-01-15',
+                'payee': 'Store A',
+                'amount': 100.0,
+                'account_id': 'acc_001'
+            },
+            {
+                'date': '2024-01-16',
+                'payee': 'Store B',
+                'amount': 150.0,
+                'account_id': 'acc_002'
+            }
+        ]
+        
+        # First insert should succeed
+        result = self.db.bulk_insert(transactions, mode='skip')
+        self.assertEqual(result['inserted'], 2)
+        
+        # Verify transactions exist
+        count = self.db.count()
+        self.assertEqual(count, 2)
+    
+    def test_get_summary_by_month_basic(self):
+        """Test get_summary_by_month with basic aggregations."""
+        # Insert test transactions
+        transactions = [
+            {
+                'date': '2024-01-15',
+                'payee': 'Store A',
+                'amount': 100.0,
+                'account_id': 'acc_001',
+                'category': 'Food',
+                'account_type': 'credit',
+                'tags': 'groceries,weekly'
+            },
+            {
+                'date': '2024-01-20',
+                'payee': 'Store B',
+                'amount': 50.0,
+                'account_id': 'acc_001',
+                'category': 'Food',
+                'account_type': 'credit',
+                'tags': 'dining'
+            },
+            {
+                'date': '2024-02-10',
+                'payee': 'Gas Station',
+                'amount': 40.0,
+                'account_id': 'acc_002',
+                'category': 'Transport',
+                'account_type': 'debit',
+                'tags': 'fuel'
+            }
+        ]
+        
+        for txn in transactions:
+            self.db.insert(txn)
+        
+        summary = self.db.get_summary_by_month()
+        
+        # Check overall monthly totals
+        self.assertEqual(len(summary['by_month']), 2)
+        
+        jan_summary = [m for m in summary['by_month'] if m['month'] == '2024-01'][0]
+        self.assertEqual(jan_summary['transaction_count'], 2)
+        self.assertEqual(jan_summary['total_amount'], 150.0)
+        
+        # Check category breakdown
+        self.assertIn('2024-01', summary['by_category'])
+        self.assertIn('Food', summary['by_category']['2024-01'])
+        self.assertEqual(summary['by_category']['2024-01']['Food']['total_amount'], 150.0)
+        
+        # Check account type breakdown
+        self.assertIn('2024-01', summary['by_account_type'])
+        self.assertIn('credit', summary['by_account_type']['2024-01'])
+        
+        # Check tag breakdown
+        self.assertIn('2024-01', summary['by_tag'])
+        self.assertIn('groceries', summary['by_tag']['2024-01'])
+        self.assertIn('dining', summary['by_tag']['2024-01'])
+    
+    def test_get_summary_by_month_with_date_filter(self):
+        """Test get_summary_by_month with date range filter."""
+        # Insert transactions across multiple months
+        transactions = [
+            {'date': '2024-01-15', 'payee': 'A', 'amount': 100.0, 'account_id': 'acc_001'},
+            {'date': '2024-02-15', 'payee': 'B', 'amount': 200.0, 'account_id': 'acc_002'},
+            {'date': '2024-03-15', 'payee': 'C', 'amount': 300.0, 'account_id': 'acc_003'}
+        ]
+        
+        for txn in transactions:
+            self.db.insert(txn)
+        
+        # Filter for January and February only
+        summary = self.db.get_summary_by_month(
+            start_date='2024-01-01',
+            end_date='2024-02-28'
+        )
+        
+        self.assertEqual(len(summary['by_month']), 2)
+        months = [m['month'] for m in summary['by_month']]
+        self.assertIn('2024-01', months)
+        self.assertIn('2024-02', months)
+        self.assertNotIn('2024-03', months)
+    
+    def test_get_summary_by_month_empty_database(self):
+        """Test get_summary_by_month with no transactions."""
+        summary = self.db.get_summary_by_month()
+        
+        self.assertEqual(len(summary['by_month']), 0)
+        self.assertEqual(len(summary['by_category']), 0)
+        self.assertEqual(len(summary['by_account_type']), 0)
+        self.assertEqual(len(summary['by_tag']), 0)
+    
+    def test_get_summary_by_month_multiple_tags(self):
+        """Test get_summary_by_month correctly splits and aggregates multiple tags."""
+        self.db.insert({
+            'date': '2024-01-15',
+            'payee': 'Store',
+            'amount': 100.0,
+            'account_id': 'acc_001',
+            'tags': 'tag1,tag2,tag3'
+        })
+        
+        summary = self.db.get_summary_by_month()
+        
+        # Check that all tags are present
+        month_tags = summary['by_tag']['2024-01']
+        self.assertIn('tag1', month_tags)
+        self.assertIn('tag2', month_tags)
+        self.assertIn('tag3', month_tags)
+        
+        # Each tag should have the full amount
+        self.assertEqual(month_tags['tag1']['total_amount'], 100.0)
+        self.assertEqual(month_tags['tag2']['total_amount'], 100.0)
+        self.assertEqual(month_tags['tag3']['total_amount'], 100.0)
 
 
 if __name__ == '__main__':
