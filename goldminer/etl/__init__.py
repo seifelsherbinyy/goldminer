@@ -10,6 +10,7 @@ from .field_validator import FieldValidator, ParsedTransaction
 from .schema_normalizer import SchemaNormalizer, TransactionRecord
 from .promo_classifier import PromoClassifier, PromoResult
 from .categorizer import Categorizer
+from .xlsx_exporter import XLSXExporter
 
 __all__ = [
     "DataIngestion",
@@ -26,5 +27,6 @@ __all__ = [
     "TransactionRecord",
     "PromoClassifier",
     "PromoResult",
-    "Categorizer"
+    "Categorizer",
+    "XLSXExporter"
 ]
