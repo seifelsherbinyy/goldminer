@@ -431,6 +431,71 @@ class TestXLSXExporter(unittest.TestCase):
             adjusted_widths = sum(1 for col in ws.column_dimensions.values() 
                                  if col.width and col.width > 8.43)
             self.assertGreater(adjusted_widths, 0)
+    
+    def test_dashboard_layout(self):
+        """Test dashboard-style layout in Monthly Summary sheet."""
+        output_file = os.path.join(self.temp_dir, 'test_dashboard.xlsx')
+        
+        self.exporter.export_to_excel(self.sample_transactions, output_file)
+        
+        wb = load_workbook(output_file)
+        ws = wb['Monthly Summary']
+        
+        # Check dashboard header
+        self.assertEqual(ws['A1'].value, 'GoldMiner Financial Dashboard')
+        self.assertTrue(ws['A1'].font.bold)
+        # Check that A1 is merged across multiple columns
+        merged_ranges = [str(r) for r in ws.merged_cells.ranges]
+        self.assertTrue(any('A1' in r and 'N1' in r for r in merged_ranges))
+        
+        # Check Key Metrics section
+        self.assertEqual(ws['A3'].value, 'Key Metrics')
+        self.assertIn('Total Spend', str(ws['A5'].value))
+        self.assertIn('# of Transactions', str(ws['A7'].value))
+        self.assertIn('Credit Card', str(ws['A9'].value))
+        self.assertIn('Debit Card', str(ws['A10'].value))
+        
+        # Check that metric values are numbers
+        self.assertIsNotNone(ws['B5'].value)
+        self.assertIsInstance(ws['B5'].value, (int, float))
+        self.assertIsNotNone(ws['B7'].value)
+        self.assertIsInstance(ws['B7'].value, (int, float))
+        
+        # Check number formatting includes currency symbol
+        self.assertIn('#,##0.00', ws['B5'].number_format)
+        # Currency symbol should be present (USD, EGP, etc.)
+        self.assertTrue(any(c in ws['B5'].number_format for c in ['USD', 'EGP', '$']))
+        
+        # Check pivot table section
+        self.assertEqual(ws['A22'].value, 'Monthly Category Breakdown')
+        self.assertEqual(ws['A24'].value, 'category')  # Pivot table header
+        
+        # Check freeze panes at A4
+        self.assertEqual(ws.freeze_panes, 'A4')
+        
+        # Check page setup
+        self.assertEqual(ws.page_setup.orientation, ws.ORIENTATION_LANDSCAPE)
+        self.assertEqual(ws.page_setup.fitToWidth, 1)
+        
+        # Check footer
+        self.assertIn('GoldMiner Report', ws.oddFooter.center.text)
+        self.assertIn('Generated on', ws.oddFooter.center.text)
+        
+        # Check charts are present
+        self.assertEqual(len(ws._charts), 3)
+        
+        # Verify chart titles
+        chart_titles = []
+        for chart in ws._charts:
+            if chart.title and chart.title.tx and chart.title.tx.rich:
+                for para in chart.title.tx.rich.p:
+                    for run in para.r:
+                        if run.t:
+                            chart_titles.append(run.t)
+        
+        self.assertIn('Spending by Category', chart_titles)
+        self.assertIn('Monthly Spending', chart_titles)
+        self.assertIn('Cumulative Spending', chart_titles)
 
 
 if __name__ == '__main__':
