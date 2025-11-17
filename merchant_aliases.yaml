@@ -1,0 +1,128 @@
+# Merchant Aliases Configuration
+# This file maps canonical merchant names to their known aliases
+# Used by MerchantResolver for fuzzy matching and name normalization
+
+merchants:
+  # Retail/Supermarkets
+  - canonical: "Carrefour"
+    aliases:
+      - "كارفور"
+      - "Carrefour EG"
+      - "Carrefour City"
+      - "Carrefour Market"
+      - "CARREFOUR MAADI"
+      - "Carrefour Express"
+      
+  - canonical: "Spinneys"
+    aliases:
+      - "سبينيز"
+      - "Spinneys Egypt"
+      - "SPINNEYS"
+      - "Spinneys Express"
+      
+  # Restaurants/Fast Food
+  - canonical: "McDonald's"
+    aliases:
+      - "ماكدونالدز"
+      - "McDonalds"
+      - "MC DONALDS"
+      - "McDonald's Egypt"
+      - "MCDONALDS"
+      
+  - canonical: "KFC"
+    aliases:
+      - "كنتاكي"
+      - "Kentucky Fried Chicken"
+      - "KFC EGYPT"
+      - "KFC Restaurant"
+      
+  - canonical: "Pizza Hut"
+    aliases:
+      - "بيتزا هت"
+      - "PizzaHut"
+      - "PIZZA HUT"
+      - "Pizza Hut Egypt"
+      
+  # Technology/E-commerce
+  - canonical: "Amazon"
+    aliases:
+      - "امازون"
+      - "AMAZON.COM"
+      - "Amazon Prime"
+      - "Amazon Marketplace"
+      - "AMZN"
+      
+  - canonical: "Jumia"
+    aliases:
+      - "جوميا"
+      - "Jumia Egypt"
+      - "JUMIA"
+      - "Jumia Online"
+      
+  # Telecom
+  - canonical: "Vodafone"
+    aliases:
+      - "فودافون"
+      - "Vodafone Egypt"
+      - "VODAFONE"
+      - "Vodafone EG"
+      - "Vodafone Cash"
+      
+  - canonical: "Orange"
+    aliases:
+      - "اورنج"
+      - "Orange Egypt"
+      - "ORANGE"
+      - "Orange EG"
+      
+  - canonical: "Etisalat"
+    aliases:
+      - "اتصالات"
+      - "Etisalat Egypt"
+      - "ETISALAT"
+      - "Etisalat Misr"
+      
+  # Banking/Financial
+  - canonical: "Fawry"
+    aliases:
+      - "فوري"
+      - "FAWRY"
+      - "Fawry Pay"
+      - "Fawry Payment"
+      
+  - canonical: "InstaPay"
+    aliases:
+      - "انستاباي"
+      - "INSTAPAY"
+      - "Insta Pay"
+      - "InstaPay Transfer"
+      
+  # Transportation
+  - canonical: "Uber"
+    aliases:
+      - "اوبر"
+      - "UBER"
+      - "Uber Egypt"
+      - "Uber Trip"
+      
+  - canonical: "Careem"
+    aliases:
+      - "كريم"
+      - "CAREEM"
+      - "Careem NOW"
+      - "Careem Egypt"
+      
+  # Utilities
+  - canonical: "Electric Company"
+    aliases:
+      - "شركة الكهرباء"
+      - "Electricity"
+      - "ELECTRIC CO"
+      - "Power Company"
+      
+  - canonical: "Water Company"
+    aliases:
+      - "شركة المياه"
+      - "Water Utility"
+      - "WATER CO"
+      - "Water Services"
