@@ -218,3 +218,4 @@ logs/*.log
 *_export.xlsx
 demo_*.xlsx
 user_financial_report.xlsx
+dashboard_verification_output.xlsx
