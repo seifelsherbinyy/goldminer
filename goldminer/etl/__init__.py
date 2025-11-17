@@ -4,6 +4,7 @@ from .schema import SchemaInference
 from .normalize import DataNormalizer
 from .clean import DataCleaner
 from .database import DatabaseManager
+from .transaction_db import TransactionDB
 from .pipeline import ETLPipeline
 from .field_validator import FieldValidator, ParsedTransaction
 from .schema_normalizer import SchemaNormalizer, TransactionRecord
@@ -17,6 +18,7 @@ __all__ = [
     "DataNormalizer",
     "DataCleaner",
     "DatabaseManager",
+    "TransactionDB",
     "ETLPipeline",
     "FieldValidator",
     "ParsedTransaction",
