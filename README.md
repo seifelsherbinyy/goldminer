@@ -37,6 +37,15 @@ A robust Python ETL (Extract, Transform, Load) pipeline for data processing and 
 - **Error Handling**: Robust validation for missing data and invalid formats
 - **JSON Export**: Generate reports suitable for automated systems
 
+### Excel Export Module (NEW)
+- **XLSXExporter**: Export transaction data to well-formatted Excel workbooks
+- **Multi-Sheet Structure**: Transactions, Monthly Summary, and Anomalies sheets
+- **Professional Formatting**: Styled headers, frozen panes, auto-adjusted columns
+- **Currency Formatting**: Automatic currency formatting for amount columns
+- **Anomaly Highlighting**: Visual highlighting of flagged transactions
+- **Charts & Visualizations**: Pie, bar, and line charts in summary sheet
+- **UTF-8 Compatible**: Full support for international characters
+
 ### Configuration & Logging
 - **Config-Driven**: YAML-based configuration for easy customization
 - **Comprehensive Logging**: Structured logging to console and file
@@ -133,6 +142,26 @@ anomalies = analyzer.detect_spikes_and_drops(daily_summary, 'amount_sum')
 print(f"Spikes: {anomalies['spike_count']}, Drops: {anomalies['drop_count']}")
 ```
 
+### Excel Export Example
+
+```python
+from goldminer.etl import TransactionDB, XLSXExporter
+
+# Query transactions from database
+db = TransactionDB("data/processed/transactions.db")
+transactions = db.query()
+
+# Convert to list of dictionaries
+transaction_dicts = [dict(txn) for txn in transactions]
+
+# Export to Excel with professional formatting
+exporter = XLSXExporter()
+exporter.export_to_excel(transaction_dicts, 'transaction_report.xlsx')
+
+db.close()
+print("Exported to transaction_report.xlsx with 3 sheets and charts!")
+```
+
 ### Run Example Scripts
 
 ```bash
@@ -141,6 +170,12 @@ python example_usage.py
 
 # Transaction analysis demo with comprehensive examples
 python transaction_analysis_demo.py
+
+# Excel export demo with sample data
+python xlsx_exporter_demo.py
+
+# Excel export integration with database
+python xlsx_exporter_integration_example.py
 ```
 
 **example_usage.py** will:
@@ -160,6 +195,19 @@ python transaction_analysis_demo.py
 7. Create visualization-ready data
 8. Demonstrate error handling capabilities
 
+**xlsx_exporter_demo.py** will:
+1. Generate sample transaction data
+2. Export to well-formatted Excel workbook
+3. Create 3 sheets: Transactions, Monthly Summary, Anomalies
+4. Add charts and professional formatting
+5. Display export summary statistics
+
+**xlsx_exporter_integration_example.py** will:
+1. Create and populate sample database
+2. Query transactions from database
+3. Export to Excel with all formatting
+4. Demonstrate filtered exports
+
 ## Project Structure
 
 ```
@@ -173,6 +221,7 @@ goldminer/
 │   │   ├── normalize.py   # Data normalization
 │   │   ├── clean.py       # Data cleaning
 │   │   ├── database.py    # Database operations
+│   │   ├── xlsx_exporter.py  # Excel export functionality
 │   │   └── pipeline.py    # Pipeline orchestrator
 │   ├── analysis/          # Analysis module
 │   │   ├── analyzer.py    # General data analysis
@@ -186,7 +235,10 @@ goldminer/
 │   └── processed/        # Processed data and database
 ├── logs/                  # Log files
 ├── transaction_analysis_demo.py  # Transaction analysis demo
+├── xlsx_exporter_demo.py  # Excel export demo
+├── xlsx_exporter_integration_example.py  # Database export demo
 ├── TRANSACTION_ANALYSIS_GUIDE.md # Comprehensive guide
+├── XLSX_EXPORTER_GUIDE.md # Excel export guide
 ├── config.yaml           # Configuration file
 ├── requirements.txt      # Dependencies
 └── example_usage.py      # Example script
@@ -276,6 +328,23 @@ with DatabaseManager('database.db') as db:
     df = db.load_dataframe('table_name')
     tables = db.list_tables()
 ```
+
+#### XLSXExporter
+```python
+from goldminer.etl import XLSXExporter, TransactionDB
+
+# Export from transaction list
+exporter = XLSXExporter()
+exporter.export_to_excel(transactions, 'output.xlsx')
+
+# Export from database
+db = TransactionDB()
+transactions = [dict(txn) for txn in db.query()]
+exporter.export_to_excel(transactions, 'database_export.xlsx')
+db.close()
+```
+
+For detailed XLSXExporter documentation, see [XLSX_EXPORTER_GUIDE.md](XLSX_EXPORTER_GUIDE.md).
 
 ### Analysis
 
