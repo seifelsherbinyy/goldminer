@@ -1,0 +1,79 @@
+# Example Rules Configuration File
+# This demonstrates the new categorization rule format with match, match_regex, and match_tag keys.
+# 
+# Priority order:
+# 1. match (exact string matching)
+# 2. match_regex (regex pattern matching)
+# 3. match_tag (tag-based matching)
+# 4. Legacy format (merchant_exact, merchant_fuzzy, keywords)
+# 5. Fallback to "Uncategorized"
+
+rules:
+  # Exact string matching - highest priority
+  - match: "Uber"
+    category: "Transport"
+    subcategory: "Ride Hailing"
+    tags: ["Mobility"]
+  
+  - match: "Careem"
+    category: "Transport"
+    subcategory: "Ride Hailing"
+    tags: ["Mobility", "MENA"]
+  
+  - match: "Netflix"
+    category: "Entertainment"
+    subcategory: "Streaming Services"
+    tags: ["Subscription", "Video"]
+  
+  - match: "Spotify"
+    category: "Entertainment"
+    subcategory: "Streaming Services"
+    tags: ["Subscription", "Audio", "Music"]
+  
+  # Regex pattern matching - second priority
+  - match_regex: ".*Vodafone.*"
+    category: "Utilities"
+    subcategory: "Telecom"
+    tags: ["Recharge", "Mobile"]
+  
+  - match_regex: ".*Orange.*"
+    category: "Utilities"
+    subcategory: "Telecom"
+    tags: ["Recharge", "Mobile"]
+  
+  - match_regex: "^Amazon.*"
+    category: "Shopping"
+    subcategory: "Online Shopping"
+    tags: ["E-commerce"]
+  
+  - match_regex: ".*Pharmacy.*|.*Pharma.*"
+    category: "Healthcare"
+    subcategory: "Pharmacy"
+    tags: ["Medical", "Health"]
+  
+  - match_regex: ".*Starbucks.*|.*Costa.*"
+    category: "Food & Dining"
+    subcategory: "Coffee Shops"
+    tags: ["Dining", "Beverages"]
+  
+  # Tag-based matching - third priority
+  - match_tag: "subscription"
+    category: "Entertainment"
+    subcategory: "Streaming"
+    tags: ["Recurring"]
+  
+  - match_tag: "online"
+    category: "Shopping"
+    subcategory: "E-commerce"
+    tags: ["Internet"]
+  
+  - match_tag: "fuel"
+    category: "Transportation"
+    subcategory: "Fuel & Gas"
+    tags: ["Car", "Vehicle"]
+
+# Fallback category for transactions that don't match any rule
+fallback:
+  category: "Uncategorized"
+  subcategory: "General"
+  tags: ["Uncategorized"]
