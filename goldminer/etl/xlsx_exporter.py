@@ -401,7 +401,12 @@ class XLSXExporter:
     
     def _create_monthly_summary_sheet(self, wb: Workbook, df: pd.DataFrame) -> None:
         """
-        Create the Monthly Summary sheet with aggregated totals.
+        Create the Monthly Summary sheet with dashboard-style layout.
+        
+        Layout:
+        - Top-left: High-level metrics (total spend, # of transactions, credit vs debit split)
+        - Top-right: Charts area (line, bar, pie)
+        - Bottom: Detailed monthly pivot table (category × month × amount)
         
         Args:
             wb: Workbook object
@@ -426,102 +431,184 @@ class XLSXExporter:
         # Extract year-month
         df_copy['year_month'] = df_copy['date'].dt.to_period('M').astype(str)
         
-        # Create summary by month and category
-        summary_data = []
+        # Get currency symbol from data if available
+        currency_symbol = 'EGP' if 'currency' not in df_copy.columns else df_copy['currency'].iloc[0] if len(df_copy) > 0 else 'EGP'
         
-        # Overall monthly totals
-        monthly_totals = df_copy.groupby('year_month')['amount'].agg(['sum', 'mean', 'count']).reset_index()
-        monthly_totals.columns = ['Month', 'Total', 'Average', 'Count']
+        # ===== DASHBOARD HEADER (Row 1) =====
+        ws['A1'] = 'GoldMiner Financial Dashboard'
+        ws['A1'].font = Font(name="Calibri", bold=True, size=16, color="FFFFFF")
+        ws['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+        ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
+        ws.merge_cells('A1:N1')
+        ws.row_dimensions[1].height = 30
         
-        # Category breakdown
+        # ===== TOP-LEFT: HIGH-LEVEL METRICS (Rows 3-11) =====
+        metrics_title_font = Font(name="Calibri", bold=True, size=12, color="1F4E78")
+        metrics_label_font = Font(name="Calibri", size=11)
+        metrics_value_font = Font(name="Calibri", bold=True, size=14)
+        metrics_fill = PatternFill(start_color="E7F3FF", end_color="E7F3FF", fill_type="solid")
+        
+        # Section header
+        ws['A3'] = 'Key Metrics'
+        ws['A3'].font = Font(name="Calibri", bold=True, size=13, color="1F4E78")
+        ws.merge_cells('A3:E3')
+        ws['A3'].alignment = Alignment(horizontal="left", vertical="center")
+        
+        # Calculate metrics
+        total_spend = df_copy['amount'].sum()
+        num_transactions = len(df_copy)
+        
+        # Credit vs Debit split
+        credit_amount = 0
+        debit_amount = 0
+        if 'account_type' in df_copy.columns:
+            credit_amount = df_copy[df_copy['account_type'].str.lower() == 'credit']['amount'].sum() if any(df_copy['account_type'].str.lower() == 'credit') else 0
+            debit_amount = df_copy[df_copy['account_type'].str.lower() == 'debit']['amount'].sum() if any(df_copy['account_type'].str.lower() == 'debit') else 0
+        
+        # Metric 1: Total Spend
+        ws['A5'] = '  Total Spend:'
+        ws['B5'] = total_spend
+        ws['A5'].font = metrics_label_font
+        ws['B5'].font = metrics_value_font
+        ws['B5'].number_format = f'"{currency_symbol} "#,##0.00'
+        ws['B5'].fill = metrics_fill
+        ws['B5'].alignment = Alignment(horizontal="right", vertical="center", indent=1)
+        ws.merge_cells('B5:E5')
+        
+        # Metric 2: Number of Transactions
+        ws['A7'] = '  # of Transactions:'
+        ws['B7'] = num_transactions
+        ws['A7'].font = metrics_label_font
+        ws['B7'].font = metrics_value_font
+        ws['B7'].number_format = '#,##0'
+        ws['B7'].fill = metrics_fill
+        ws['B7'].alignment = Alignment(horizontal="right", vertical="center", indent=1)
+        ws.merge_cells('B7:E7')
+        
+        # Metric 3: Credit Split
+        ws['A9'] = '  Credit Card:'
+        ws['B9'] = credit_amount
+        ws['A9'].font = metrics_label_font
+        ws['B9'].font = metrics_value_font
+        ws['B9'].number_format = f'"{currency_symbol} "#,##0.00'
+        ws['B9'].fill = metrics_fill
+        ws['B9'].alignment = Alignment(horizontal="right", vertical="center", indent=1)
+        ws.merge_cells('B9:E9')
+        
+        # Metric 4: Debit Split
+        ws['A10'] = '  Debit Card:'
+        ws['B10'] = debit_amount
+        ws['A10'].font = metrics_label_font
+        ws['B10'].font = metrics_value_font
+        ws['B10'].number_format = f'"{currency_symbol} "#,##0.00'
+        ws['B10'].fill = metrics_fill
+        ws['B10'].alignment = Alignment(horizontal="right", vertical="center", indent=1)
+        ws.merge_cells('B10:E10')
+        
+        # Add borders to metrics section
+        for row in range(5, 11):
+            for col in range(1, 6):
+                ws.cell(row=row, column=col).border = Border(
+                    left=Side(style='thin', color='B4C7E7'),
+                    right=Side(style='thin', color='B4C7E7'),
+                    top=Side(style='thin', color='B4C7E7'),
+                    bottom=Side(style='thin', color='B4C7E7')
+                )
+        
+        # ===== TOP-RIGHT: CHARTS AREA (Starting from column G, rows 3-20) =====
+        # Charts will be added by _add_charts method
+        
+        # ===== BOTTOM: DETAILED MONTHLY PIVOT TABLE (Starting from row 22) =====
+        pivot_start_row = 22
+        
+        # Pivot section header
+        ws[f'A{pivot_start_row}'] = 'Monthly Category Breakdown'
+        ws[f'A{pivot_start_row}'].font = Font(name="Calibri", bold=True, size=13, color="1F4E78")
+        ws.merge_cells(f'A{pivot_start_row}:N{pivot_start_row}')
+        ws[f'A{pivot_start_row}'].alignment = Alignment(horizontal="left", vertical="center")
+        
+        # Create category × month pivot table
         if 'category' in df_copy.columns:
             category_summary = df_copy.groupby(['year_month', 'category'])['amount'].sum().reset_index()
-            category_pivot = category_summary.pivot(index='year_month', columns='category', values='amount').fillna(0)
-        
-        # Account breakdown
-        if 'account_id' in df_copy.columns:
-            account_summary = df_copy.groupby(['year_month', 'account_id'])['amount'].sum().reset_index()
-        
-        # Write monthly totals section
-        ws['A1'] = 'Monthly Transaction Summary'
-        ws['A1'].font = Font(name="Calibri", bold=True, size=14)
-        ws.merge_cells('A1:D1')
-        
-        # Write headers and data for monthly totals
-        row_idx = 3
-        for r_idx, row in enumerate(dataframe_to_rows(monthly_totals, index=False, header=True), row_idx):
-            for c_idx, value in enumerate(row, 1):
-                cell = ws.cell(row=r_idx, column=c_idx, value=value)
-                if r_idx == row_idx:  # Header row
-                    cell.font = self.header_font
-                    cell.fill = self.header_fill
-                    cell.alignment = self.header_alignment
-                    cell.border = self.border
-                else:
-                    # Apply default font and border
+            category_pivot = category_summary.pivot(index='category', columns='year_month', values='amount').fillna(0)
+            
+            # Add a total column
+            category_pivot['Total'] = category_pivot.sum(axis=1)
+            
+            # Add a total row
+            category_pivot.loc['Total'] = category_pivot.sum(axis=0)
+            
+            # Write pivot table
+            pivot_data_start = pivot_start_row + 2
+            category_pivot_reset = category_pivot.reset_index()
+            
+            # Write headers
+            for c_idx, col_name in enumerate(category_pivot_reset.columns, 1):
+                cell = ws.cell(row=pivot_data_start, column=c_idx, value=col_name)
+                cell.font = self.header_font
+                cell.fill = self.header_fill
+                cell.alignment = self.header_alignment
+                cell.border = self.border
+            
+            # Write data rows
+            for r_idx, row in enumerate(category_pivot_reset.itertuples(index=False), pivot_data_start + 1):
+                for c_idx, value in enumerate(row, 1):
+                    cell = ws.cell(row=r_idx, column=c_idx, value=value)
                     cell.font = self.default_font
                     cell.border = self.border
                     
-                    if c_idx in [2, 3]:  # Total and Average columns
-                        cell.number_format = self.currency_format
-                        cell.font = self.currency_font
-        
-        # Apply alternating row shading to monthly totals
-        monthly_totals_end_row = row_idx + len(monthly_totals)
-        self._apply_alternating_row_shading(
-            ws,
-            start_row=row_idx + 1,
-            end_row=monthly_totals_end_row,
-            start_col=1,
-            end_col=4
-        )
-        
-        # Write category breakdown if available
-        if 'category' in df_copy.columns:
-            row_idx = len(monthly_totals) + 6
-            ws.cell(row=row_idx, column=1, value='Spending by Category')
-            ws.cell(row=row_idx, column=1).font = Font(name="Calibri", bold=True, size=12)
-            
-            row_idx += 2
-            category_pivot_reset = category_pivot.reset_index()
-            category_start_row = row_idx
-            for r_idx, row in enumerate(dataframe_to_rows(category_pivot_reset, index=False, header=True), row_idx):
-                for c_idx, value in enumerate(row, 1):
-                    cell = ws.cell(row=r_idx, column=c_idx, value=value)
-                    if r_idx == row_idx:  # Header row
-                        cell.font = self.header_font
-                        cell.fill = self.header_fill
-                        cell.alignment = self.header_alignment
-                        cell.border = self.border
+                    # Format amount columns (all except first column which is category)
+                    if c_idx > 1:
+                        cell.number_format = f'"{currency_symbol} "#,##0.00'
+                        cell.alignment = Alignment(horizontal="right", vertical="center", indent=1)
                     else:
-                        # Apply default font and border
-                        cell.font = self.default_font
-                        cell.border = self.border
-                        
-                        if c_idx > 1:  # Amount columns
-                            cell.number_format = self.currency_format
-                            cell.font = self.currency_font
+                        cell.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+                    
+                    # Bold the Total row
+                    if r_idx == pivot_data_start + len(category_pivot_reset) - 1:
+                        cell.font = Font(name="Calibri", bold=True, size=11)
+                        cell.fill = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
             
-            # Apply alternating row shading to category breakdown
-            category_end_row = row_idx + len(category_pivot_reset)
+            # Apply alternating row shading (excluding total row)
             self._apply_alternating_row_shading(
                 ws,
-                start_row=category_start_row + 1,
-                end_row=category_end_row,
+                start_row=pivot_data_start + 1,
+                end_row=pivot_data_start + len(category_pivot_reset) - 2,
                 start_col=1,
                 end_col=len(category_pivot_reset.columns)
             )
         
-        # Freeze top rows
-        ws.freeze_panes = ws['A4']
+        # ===== CONFIGURE PAGE SETUP FOR PRINTING =====
+        ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0  # Allow multiple pages vertically if needed
         
-        # Auto-adjust column widths
+        # ===== FREEZE PANES (Freeze dashboard header and metrics) =====
+        ws.freeze_panes = 'A4'
+        
+        # ===== ADD FOOTER WITH GENERATION DATE =====
+        generation_date = datetime.now().strftime('%Y-%m-%d')
+        ws.oddFooter.center.text = f"GoldMiner Report — Generated on {generation_date}"
+        ws.oddFooter.center.font = "Calibri,Italic"
+        ws.oddFooter.center.size = 10
+        
+        # ===== AUTO-ADJUST COLUMN WIDTHS =====
         self._auto_adjust_column_widths(ws)
         
-        # Add charts
-        self._add_charts(ws, monthly_totals, df_copy)
+        # Set specific widths for metrics columns
+        ws.column_dimensions['A'].width = 20
+        ws.column_dimensions['B'].width = 18
+        ws.column_dimensions['C'].width = 18
+        ws.column_dimensions['D'].width = 18
+        ws.column_dimensions['E'].width = 18
         
-        self.logger.info("Created Monthly Summary sheet")
+        # ===== ADD CHARTS =====
+        # Overall monthly totals for charts
+        monthly_totals = df_copy.groupby('year_month')['amount'].agg(['sum', 'mean', 'count']).reset_index()
+        monthly_totals.columns = ['Month', 'Total', 'Average', 'Count']
+        self._add_dashboard_charts(ws, monthly_totals, df_copy, currency_symbol)
+        
+        self.logger.info("Created Monthly Summary sheet with dashboard layout")
     
     def _create_anomalies_sheet(self, wb: Workbook, df: pd.DataFrame) -> None:
         """
@@ -706,6 +793,111 @@ class XLSXExporter:
         ws.add_chart(line, "J37")
         
         self.logger.info("Added charts to Monthly Summary sheet")
+    
+    def _add_dashboard_charts(self, ws, monthly_totals: pd.DataFrame, df: pd.DataFrame, currency_symbol: str = 'EGP') -> None:
+        """
+        Add charts to the dashboard layout in the top-right area.
+        
+        Args:
+            ws: Worksheet object
+            monthly_totals: DataFrame with monthly summary data
+            df: Original DataFrame with transaction data
+            currency_symbol: Currency symbol to use in charts
+        """
+        if monthly_totals.empty:
+            return
+        
+        # Chart positions in top-right area (starting from column G, row 3)
+        chart_col_start = 7  # Column G
+        
+        # 1. Pie Chart - Category Share (Top Right)
+        if 'category' in df.columns:
+            category_totals = df.groupby('category')['amount'].sum().reset_index()
+            category_totals = category_totals.sort_values('amount', ascending=False)
+            
+            # Write category data for chart in a hidden area
+            hidden_data_col = 16  # Column P (far right, won't interfere)
+            chart_data_row = 3
+            ws.cell(row=chart_data_row, column=hidden_data_col, value='Category')
+            ws.cell(row=chart_data_row, column=hidden_data_col + 1, value='Total')
+            for idx, row in enumerate(category_totals.itertuples(), chart_data_row + 1):
+                ws.cell(row=idx, column=hidden_data_col, value=row.category)
+                ws.cell(row=idx, column=hidden_data_col + 1, value=row.amount)
+            
+            # Create pie chart
+            pie = PieChart()
+            pie.title = "Spending by Category"
+            pie.style = 10
+            pie.width = 12
+            pie.height = 9
+            
+            # Add data to chart
+            data = Reference(ws, min_col=hidden_data_col + 1, min_row=chart_data_row, 
+                           max_row=chart_data_row + len(category_totals))
+            cats = Reference(ws, min_col=hidden_data_col, min_row=chart_data_row + 1, 
+                           max_row=chart_data_row + len(category_totals))
+            pie.add_data(data, titles_from_data=True)
+            pie.set_categories(cats)
+            
+            # Position in top-right
+            ws.add_chart(pie, "G3")
+        
+        # 2. Bar Chart - Monthly Spending Trends (Middle Right)
+        # Write monthly data for bar chart
+        hidden_data_col = 18  # Column R
+        bar_data_row = 3
+        ws.cell(row=bar_data_row, column=hidden_data_col, value='Month')
+        ws.cell(row=bar_data_row, column=hidden_data_col + 1, value='Spending')
+        for idx, row in enumerate(monthly_totals.itertuples(), bar_data_row + 1):
+            ws.cell(row=idx, column=hidden_data_col, value=row.Month)
+            ws.cell(row=idx, column=hidden_data_col + 1, value=row.Total)
+        
+        bar = BarChart()
+        bar.type = "col"
+        bar.title = "Monthly Spending"
+        bar.y_axis.title = f'Amount ({currency_symbol})'
+        bar.x_axis.title = 'Month'
+        bar.width = 12
+        bar.height = 7
+        
+        data_rows = bar_data_row + len(monthly_totals)
+        data = Reference(ws, min_col=hidden_data_col + 1, min_row=bar_data_row, max_row=data_rows)
+        cats = Reference(ws, min_col=hidden_data_col, min_row=bar_data_row + 1, max_row=data_rows)
+        bar.add_data(data, titles_from_data=True)
+        bar.set_categories(cats)
+        
+        # Position below pie chart
+        ws.add_chart(bar, "G13")
+        
+        # 3. Line Chart - Cumulative Spending Trend (Bottom Right)
+        # Calculate and write cumulative data
+        hidden_data_col = 20  # Column T
+        line_data_row = 3
+        ws.cell(row=line_data_row, column=hidden_data_col, value='Month')
+        ws.cell(row=line_data_row, column=hidden_data_col + 1, value='Cumulative')
+        cumulative_sum = 0
+        for idx, row in enumerate(monthly_totals.itertuples(), line_data_row + 1):
+            cumulative_sum += row.Total
+            ws.cell(row=idx, column=hidden_data_col, value=row.Month)
+            ws.cell(row=idx, column=hidden_data_col + 1, value=cumulative_sum)
+        
+        line = LineChart()
+        line.title = "Cumulative Spending"
+        line.y_axis.title = f'Cumulative ({currency_symbol})'
+        line.x_axis.title = 'Month'
+        line.width = 6
+        line.height = 7
+        line.style = 13
+        
+        data = Reference(ws, min_col=hidden_data_col + 1, min_row=line_data_row, max_row=line_data_row + len(monthly_totals))
+        cats = Reference(ws, min_col=hidden_data_col, min_row=line_data_row + 1, max_row=line_data_row + len(monthly_totals))
+        line.add_data(data, titles_from_data=True)
+        line.set_categories(cats)
+        
+        # Position to the right of bar chart
+        ws.add_chart(line, "K13")
+        
+        self.logger.info("Added dashboard charts to Monthly Summary sheet")
     
     def _auto_adjust_column_widths(self, ws) -> None:
         """
