@@ -20,7 +20,12 @@ The exporter creates three sheets in each workbook:
 - **Frozen Panes**: Top row frozen for easy scrolling
 - **Auto-Adjusted Widths**: Column widths automatically adjusted based on content
 - **Currency Formatting**: Amount columns formatted as currency (e.g., $1,234.56)
-- **Anomaly Highlighting**: Rows with anomalies highlighted in light red
+- **Conditional Formatting**: Dynamic urgency-based highlighting:
+  - **High Urgency**: Red fill with bold white text
+  - **Medium Urgency**: Yellow fill
+  - **Normal/Low Urgency**: Green tint
+- **Anomaly Borders**: Bold red borders for rows with anomaly flags
+- **Dynamic Application**: Formatting applied based on cell content (not hardcoded row indices)
 
 ### Charts and Visualizations
 
@@ -132,8 +137,9 @@ The XLSXExporter expects transactions as a list of dictionaries with the followi
 - `currency`: Currency code (string, default: 'USD')
 - `account_id`: Account identifier (string)
 - `account_type`: Account type (string, e.g., 'Credit', 'Debit')
+- `urgency`: Transaction urgency level (string: 'high', 'medium', 'normal', or 'low')
 - `tags`: Transaction tags (string)
-- `anomalies`: Anomaly flags (string, comma-separated)
+- `anomalies`: Anomaly flags (string, comma-separated values like 'high_value', 'burst_frequency', 'unknown_merchant')
 - `confidence`: Confidence score (float or string)
 
 ### Example Transaction
@@ -149,6 +155,7 @@ The XLSXExporter expects transactions as a list of dictionaries with the followi
     'currency': 'USD',
     'account_id': 'ACC-CREDIT-001',
     'account_type': 'Credit',
+    'urgency': 'normal',
     'tags': 'online,electronics',
     'anomalies': 'high_value',
     'confidence': 'high'
@@ -170,13 +177,18 @@ Contains all transaction data with the following columns:
 - currency
 - account_id
 - account_type
+- urgency
 - tags
 - anomalies
 - confidence
 
 **Features**:
 - Header row frozen for scrolling
-- Anomaly rows highlighted in light red
+- Conditional formatting based on urgency level:
+  - High urgency: Red fill with bold white text
+  - Medium urgency: Yellow fill
+  - Normal/Low urgency: Green tint
+- Bold red borders for rows with anomaly flags
 - Amount columns with currency formatting
 
 ### Monthly Summary Sheet
@@ -200,9 +212,104 @@ Aggregated data by month including:
 ### Anomalies Sheet
 
 Contains only transactions with anomaly flags, displayed with:
-- All relevant transaction fields
-- Highlighted rows for easy identification
+- All relevant transaction fields including urgency
+- Conditional formatting based on urgency level
+- Bold red borders for all anomaly rows (since all rows have anomalies)
 - Same formatting as Transactions sheet
+
+## Conditional Formatting
+
+The XLSXExporter now includes advanced conditional formatting features that dynamically highlight transactions based on their urgency level and anomaly status.
+
+### Urgency-Based Formatting
+
+Transactions are automatically formatted based on their urgency level:
+
+- **High Urgency** (`urgency='high'`):
+  - Red background fill (#FF0000)
+  - Bold white text for high visibility
+  - Applied to transactions with amounts ≥ $10,000 or critical flags
+
+- **Medium Urgency** (`urgency='medium'`):
+  - Yellow background fill (#FFFF00)
+  - Standard text formatting
+  - Applied to transactions with amounts ≥ $5,000 (for credit cards)
+
+- **Normal/Low Urgency** (`urgency='normal'` or `urgency='low'`):
+  - Light green tint (#C6EFCE)
+  - Standard text formatting
+  - Applied to regular transactions
+
+### Anomaly Border Formatting
+
+Transactions with anomaly flags receive bold red borders:
+
+- **Border Style**: Thick red border (#FF0000) on all sides
+- **Applied To**: Any transaction with non-empty `anomalies` field
+- **Common Anomaly Types**:
+  - `high_value`: Unusually large transaction amounts
+  - `burst_frequency`: Rapid succession of transactions
+  - `unknown_merchant`: Unrecognized merchant/payee
+  - `duplicate`: Potential duplicate transaction
+
+### Dynamic Application
+
+Conditional formatting is applied dynamically using openpyxl's `CellIsRule`:
+
+- Formatting rules are based on cell content, not hardcoded row indices
+- Works correctly with any number of transactions (tested with 1K+ records)
+- Automatically adapts to filtered or sorted data
+- Applied to entire rows for consistent visualization
+
+### Example with Conditional Formatting
+
+```python
+from goldminer.etl import XLSXExporter
+
+# Transactions with urgency and anomaly flags
+transactions = [
+    {
+        'id': 'TXN001',
+        'date': '2024-01-15',
+        'payee': 'Large Purchase Store',
+        'category': 'Shopping',
+        'amount': 15000.00,
+        'urgency': 'high',  # Will get red fill with bold white text
+        'anomalies': 'high_value'  # Will get red borders
+    },
+    {
+        'id': 'TXN002',
+        'date': '2024-01-16',
+        'payee': 'Monthly Bill',
+        'category': 'Bills',
+        'amount': 7500.00,
+        'urgency': 'medium',  # Will get yellow fill
+        'anomalies': ''
+    },
+    {
+        'id': 'TXN003',
+        'date': '2024-01-17',
+        'payee': 'Coffee Shop',
+        'category': 'Food',
+        'amount': 5.50,
+        'urgency': 'normal',  # Will get green tint
+        'anomalies': ''
+    }
+]
+
+exporter = XLSXExporter()
+exporter.export_to_excel(transactions, 'formatted_transactions.xlsx')
+```
+
+### Helper Functions
+
+The exporter includes helper functions for consistent formatting:
+
+- `_apply_row_urgency_formatting()`: Applies urgency formatting to entire rows
+- `_apply_anomaly_borders()`: Applies red borders to anomaly rows
+- `_apply_urgency_formatting()`: Applies urgency formatting to specific columns
+
+These functions ensure consistent styling across all sheets and simplify maintenance.
 
 ## Advanced Usage
 
@@ -415,6 +522,21 @@ python xlsx_exporter_demo.py
 ```
 
 This generates sample data and creates `demo_transactions_export.xlsx`.
+
+### Conditional Formatting Demo
+
+Run the conditional formatting demo to see the new features:
+
+```bash
+python xlsx_conditional_formatting_demo.py
+```
+
+This creates `demo_conditional_formatting_export.xlsx` with:
+- 1200+ transactions with mixed urgency levels
+- Various anomaly types (high_value, burst_frequency, unknown_merchant, duplicate)
+- Full conditional formatting applied to both Transactions and Anomalies sheets
+
+The demo output shows statistics on urgency distribution and anomaly counts.
 
 ### Integration Demo
 
