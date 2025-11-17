@@ -27,12 +27,17 @@ def run_pipeline(args):
         table_name=args.table,
         is_directory=args.directory,
         skip_duplicates=not args.keep_duplicates,
-        skip_outliers=args.remove_outliers
+        skip_outliers=args.remove_outliers,
+        detect_anomalies=args.detect_anomalies
     )
     
     print(f"\n✓ Pipeline completed successfully!")
     print(f"✓ Processed {len(df)} rows with {len(df.columns)} columns")
     print(f"✓ Data saved to table: {args.table}")
+    
+    if args.detect_anomalies and 'anomalies' in df.columns:
+        anomaly_count = len([v for v in df['anomalies'] if v is not None])
+        print(f"✓ Anomaly detection: {anomaly_count} anomalies detected")
     
     if args.analyze:
         analyze_data(args, df, config)
@@ -154,6 +159,8 @@ Examples:
                            help='Remove outliers from data')
     run_parser.add_argument('--analyze', action='store_true',
                            help='Run analysis after pipeline')
+    run_parser.add_argument('--detect-anomalies', action='store_true',
+                           help='Detect anomalies in transactions')
     run_parser.add_argument('--config', help='Path to config file')
     run_parser.add_argument('--output', help='Save analysis report to JSON file')
     
