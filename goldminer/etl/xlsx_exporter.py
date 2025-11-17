@@ -12,6 +12,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
 from openpyxl.chart import PieChart, BarChart, LineChart, Reference
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.formatting.rule import CellIsRule
 from goldminer.utils import setup_logger
 
 
@@ -49,7 +50,180 @@ class XLSXExporter:
             bottom=Side(style='thin')
         )
         
+        # Define urgency-based formatting styles
+        self.urgency_high_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+        self.urgency_high_font = Font(bold=True, color="FFFFFF")
+        self.urgency_medium_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+        self.urgency_low_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        
+        # Define anomaly border style
+        self.anomaly_border = Border(
+            left=Side(style='thick', color="FF0000"),
+            right=Side(style='thick', color="FF0000"),
+            top=Side(style='thick', color="FF0000"),
+            bottom=Side(style='thick', color="FF0000")
+        )
+        
         self.logger.info("XLSXExporter initialized")
+    
+    def _apply_urgency_formatting(self, ws, urgency_col_letter: str, start_row: int, end_row: int) -> None:
+        """
+        Apply conditional formatting for urgency levels.
+        
+        Uses openpyxl's conditional formatting rules to dynamically format cells
+        based on their urgency value without hardcoding row indices.
+        
+        Args:
+            ws: Worksheet object
+            urgency_col_letter: Column letter containing urgency values (e.g., 'J')
+            start_row: First data row (usually 2, after header)
+            end_row: Last data row
+        """
+        if end_row < start_row:
+            return
+        
+        # Define the range for the entire row based on urgency column
+        urgency_range = f"{urgency_col_letter}{start_row}:{urgency_col_letter}{end_row}"
+        
+        # High urgency: red fill with bold white text
+        high_rule = CellIsRule(
+            operator='equal',
+            formula=['"high"'],
+            fill=self.urgency_high_fill,
+            font=self.urgency_high_font
+        )
+        ws.conditional_formatting.add(urgency_range, high_rule)
+        
+        # Medium urgency: yellow fill
+        medium_rule = CellIsRule(
+            operator='equal',
+            formula=['"medium"'],
+            fill=self.urgency_medium_fill
+        )
+        ws.conditional_formatting.add(urgency_range, medium_rule)
+        
+        # Low/Normal urgency: green tint
+        low_rule = CellIsRule(
+            operator='equal',
+            formula=['"normal"'],
+            fill=self.urgency_low_fill
+        )
+        ws.conditional_formatting.add(urgency_range, low_rule)
+        
+        # Also apply for "low" in case it appears in data
+        low_alt_rule = CellIsRule(
+            operator='equal',
+            formula=['"low"'],
+            fill=self.urgency_low_fill
+        )
+        ws.conditional_formatting.add(urgency_range, low_alt_rule)
+        
+        self.logger.info(f"Applied urgency conditional formatting to column {urgency_col_letter}")
+    
+    def _apply_row_urgency_formatting(self, ws, urgency_col_idx: int, start_row: int, end_row: int, 
+                                       row_start_col: int, row_end_col: int) -> None:
+        """
+        Apply conditional formatting to entire rows based on urgency in a specific column.
+        
+        This extends formatting across all columns in a row when urgency is detected.
+        
+        Args:
+            ws: Worksheet object
+            urgency_col_idx: Column index containing urgency values
+            start_row: First data row
+            end_row: Last data row
+            row_start_col: First column to format in each row
+            row_end_col: Last column to format in each row
+        """
+        if end_row < start_row:
+            return
+        
+        from openpyxl.utils import get_column_letter
+        
+        urgency_col_letter = get_column_letter(urgency_col_idx)
+        
+        # Apply formatting to all columns in rows with specific urgency
+        for col_idx in range(row_start_col, row_end_col + 1):
+            col_letter = get_column_letter(col_idx)
+            cell_range = f"{col_letter}{start_row}:{col_letter}{end_row}"
+            
+            # High urgency: red fill with bold white text
+            high_rule = CellIsRule(
+                operator='equal',
+                formula=[f'${urgency_col_letter}{start_row}="high"'],
+                fill=self.urgency_high_fill,
+                font=self.urgency_high_font
+            )
+            ws.conditional_formatting.add(cell_range, high_rule)
+            
+            # Medium urgency: yellow fill
+            medium_rule = CellIsRule(
+                operator='equal',
+                formula=[f'${urgency_col_letter}{start_row}="medium"'],
+                fill=self.urgency_medium_fill
+            )
+            ws.conditional_formatting.add(cell_range, medium_rule)
+            
+            # Low/Normal urgency: green tint
+            low_rule = CellIsRule(
+                operator='equal',
+                formula=[f'${urgency_col_letter}{start_row}="normal"'],
+                fill=self.urgency_low_fill
+            )
+            ws.conditional_formatting.add(cell_range, low_rule)
+            
+            # Also handle "low" value
+            low_alt_rule = CellIsRule(
+                operator='equal',
+                formula=[f'${urgency_col_letter}{start_row}="low"'],
+                fill=self.urgency_low_fill
+            )
+            ws.conditional_formatting.add(cell_range, low_alt_rule)
+        
+        self.logger.info(f"Applied row-based urgency formatting based on column {urgency_col_letter}")
+    
+    def _apply_anomaly_borders(self, ws, anomaly_col_idx: int, start_row: int, end_row: int,
+                                row_start_col: int, row_end_col: int) -> None:
+        """
+        Apply bold red borders to rows containing anomaly flags.
+        
+        Checks for non-empty anomaly values and applies border formatting to the entire row.
+        
+        Args:
+            ws: Worksheet object
+            anomaly_col_idx: Column index containing anomaly flags
+            start_row: First data row
+            end_row: Last data row
+            row_start_col: First column to format in each row
+            row_end_col: Last column to format in each row
+        """
+        if end_row < start_row:
+            return
+        
+        from openpyxl.utils import get_column_letter
+        
+        anomaly_col_letter = get_column_letter(anomaly_col_idx)
+        
+        # Apply borders to all columns in rows with anomalies
+        for col_idx in range(row_start_col, row_end_col + 1):
+            col_letter = get_column_letter(col_idx)
+            cell_range = f"{col_letter}{start_row}:{col_letter}{end_row}"
+            
+            # Create rule for non-empty anomaly values
+            anomaly_rule = CellIsRule(
+                operator='notEqual',
+                formula=['""'],
+                border=self.anomaly_border
+            )
+            # Apply with reference to anomaly column
+            for row_idx in range(start_row, end_row + 1):
+                anomaly_value = ws.cell(row=row_idx, column=anomaly_col_idx).value
+                if anomaly_value and str(anomaly_value).strip():
+                    # Apply border to each cell in the row
+                    for col in range(row_start_col, row_end_col + 1):
+                        ws.cell(row=row_idx, column=col).border = self.anomaly_border
+        
+        self.logger.info(f"Applied anomaly borders to rows with flags in column {anomaly_col_letter}")
     
     def export_to_excel(self, transactions: List[Dict[str, Any]], filename: str) -> None:
         """
@@ -107,7 +281,7 @@ class XLSXExporter:
         columns = [
             'id', 'date', 'payee', 'category', 'subcategory', 
             'amount', 'currency', 'account_id', 'account_type',
-            'tags', 'anomalies', 'confidence'
+            'urgency', 'tags', 'anomalies', 'confidence'
         ]
         
         # Filter columns that exist in the dataframe
@@ -131,13 +305,34 @@ class XLSXExporter:
                     # Apply currency formatting to amount column
                     if available_columns[c_idx - 1] == 'amount' and value is not None:
                         cell.number_format = numbers.FORMAT_CURRENCY_USD_SIMPLE
-                    
-                    # Highlight anomaly rows
-                    if 'anomalies' in available_columns:
-                        anomaly_col_idx = available_columns.index('anomalies') + 1
-                        anomaly_value = ws.cell(row=r_idx, column=anomaly_col_idx).value
-                        if anomaly_value and str(anomaly_value).strip():
-                            cell.fill = self.anomaly_fill
+        
+        # Apply conditional formatting for urgency (if urgency column exists)
+        if 'urgency' in available_columns:
+            urgency_col_idx = available_columns.index('urgency') + 1
+            from openpyxl.utils import get_column_letter
+            urgency_col_letter = get_column_letter(urgency_col_idx)
+            
+            # Apply row-based urgency formatting (formats entire row based on urgency value)
+            self._apply_row_urgency_formatting(
+                ws, 
+                urgency_col_idx, 
+                start_row=2, 
+                end_row=len(df_subset) + 1,
+                row_start_col=1,
+                row_end_col=len(available_columns)
+            )
+        
+        # Apply anomaly borders (if anomalies column exists)
+        if 'anomalies' in available_columns:
+            anomaly_col_idx = available_columns.index('anomalies') + 1
+            self._apply_anomaly_borders(
+                ws,
+                anomaly_col_idx,
+                start_row=2,
+                end_row=len(df_subset) + 1,
+                row_start_col=1,
+                row_end_col=len(available_columns)
+            )
         
         # Freeze top row
         ws.freeze_panes = ws['A2']
@@ -264,7 +459,7 @@ class XLSXExporter:
         # Define columns to show
         columns = [
             'id', 'date', 'payee', 'category', 'amount', 
-            'account_id', 'anomalies', 'confidence'
+            'account_id', 'urgency', 'anomalies', 'confidence'
         ]
         available_columns = [col for col in columns if col in df_anomalies.columns]
         df_subset = df_anomalies[available_columns].copy()
@@ -282,11 +477,38 @@ class XLSXExporter:
                     cell.border = self.border
                 else:
                     cell.border = self.border
-                    cell.fill = self.anomaly_fill  # Highlight all anomaly rows
                     
                     # Apply currency formatting to amount column
                     if available_columns[c_idx - 1] == 'amount' and value is not None:
                         cell.number_format = numbers.FORMAT_CURRENCY_USD_SIMPLE
+        
+        # Apply conditional formatting for urgency (if urgency column exists)
+        if 'urgency' in available_columns:
+            urgency_col_idx = available_columns.index('urgency') + 1
+            from openpyxl.utils import get_column_letter
+            urgency_col_letter = get_column_letter(urgency_col_idx)
+            
+            # Apply row-based urgency formatting
+            self._apply_row_urgency_formatting(
+                ws, 
+                urgency_col_idx, 
+                start_row=2, 
+                end_row=len(df_subset) + 1,
+                row_start_col=1,
+                row_end_col=len(available_columns)
+            )
+        
+        # Apply anomaly borders (anomalies column always exists in this sheet)
+        if 'anomalies' in available_columns:
+            anomaly_col_idx = available_columns.index('anomalies') + 1
+            self._apply_anomaly_borders(
+                ws,
+                anomaly_col_idx,
+                start_row=2,
+                end_row=len(df_subset) + 1,
+                row_start_col=1,
+                row_end_col=len(available_columns)
+            )
         
         # Freeze top row
         ws.freeze_panes = ws['A2']
