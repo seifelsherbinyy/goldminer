@@ -219,3 +219,8 @@ logs/*.log
 demo_*.xlsx
 user_financial_report.xlsx
 dashboard_verification_output.xlsx
+
+# Jupyter notebook exports and test files
+exports/
+test_notebook.py
+*.parquet
