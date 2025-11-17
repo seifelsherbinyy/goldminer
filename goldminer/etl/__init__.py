@@ -12,6 +12,7 @@ from .promo_classifier import PromoClassifier, PromoResult
 from .categorizer import Categorizer
 from .xlsx_exporter import XLSXExporter
 from .parquet_exporter import ParquetExporter
+from .user_report import generate_user_report
 
 __all__ = [
     "DataIngestion",
@@ -30,5 +31,6 @@ __all__ = [
     "PromoResult",
     "Categorizer",
     "XLSXExporter",
-    "ParquetExporter"
+    "ParquetExporter",
+    "generate_user_report"
 ]
