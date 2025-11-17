@@ -21,10 +21,16 @@ def generate_user_report(transactions: List[dict], output_path: str) -> None:
     - Anomalies: Red-highlighted rows for quick review
     - Summary: Pivoted monthly category totals with embedded charts
     
-    Charts include:
-    - Monthly spend line chart
-    - Category breakdown pie chart
-    - Merchant bar chart (top 5)
+    Charts include (with auto-sizing and dynamic titles):
+    - Line chart: Monthly spending trend with year(s) in title (e.g., "Monthly Spend – 2025")
+    - Pie chart: Category-wise expense share with multi-color scheme
+    - Bar chart: Top 5 merchants by volume with gradient colors
+    
+    Chart features:
+    - Dynamic titles with year information (e.g., "2025" or "2023–2025")
+    - Auto-sizing based on data range (number of months, categories, merchants)
+    - Excel theme color palette for visual consistency
+    - Smart positioning to avoid overlapping
     
     All sheets have consistent column formats, bold headers, filters, and readable styling.
     
@@ -305,10 +311,16 @@ def _create_summary_sheet(workbook: xlsxwriter.Workbook, df: pd.DataFrame,
     """
     Create the Summary sheet with pivoted monthly category totals and embedded charts.
     
-    Includes:
-    - Monthly spend line chart
-    - Category breakdown pie chart
-    - Merchant bar chart (top 5)
+    Includes enhanced charts with:
+    - Line chart: Monthly spending trend with dynamic title including year(s)
+    - Pie chart: Category breakdown with 10-color Excel theme palette
+    - Bar chart: Top 5 merchants with 5-color gradient scheme
+    
+    Chart enhancements:
+    - Auto-sizing: Heights adjust based on data volume (300-500px range)
+    - Dynamic titles: Include year information (e.g., "Monthly Spend – 2025")
+    - Color schemes: Excel theme colors for professional appearance
+    - Smart positioning: Charts positioned with dynamic spacing to avoid overlap
     
     Args:
         workbook: xlsxwriter Workbook object
