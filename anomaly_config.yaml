@@ -1,0 +1,28 @@
+# Anomaly Detection Configuration
+# This file contains configurable thresholds for anomaly detection rules
+
+anomaly_detection:
+  # High value detection: amount exceeds user's historical percentile
+  high_value:
+    percentile: 90  # Detect amounts above 90th percentile
+    min_history_transactions: 10  # Minimum transactions needed for reliable percentile
+  
+  # Burst frequency detection: same merchant used too frequently
+  burst_frequency:
+    count_threshold: 3  # Number of transactions to same merchant
+    time_window_hours: 24  # Within this time window
+  
+  # Unknown merchant detection: payee not seen in recent history
+  unknown_merchant:
+    history_window: 100  # Look back at last N transactions
+  
+  # Optional: Enable/disable specific rules
+  enabled_rules:
+    - high_value
+    - burst_frequency
+    - unknown_merchant
+  
+  # Performance settings
+  caching:
+    enabled: true  # Cache results for repeated queries
+    max_cache_size: 1000  # Maximum number of cached results

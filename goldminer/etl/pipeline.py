@@ -6,6 +6,7 @@ from goldminer.etl.schema import SchemaInference
 from goldminer.etl.normalize import DataNormalizer
 from goldminer.etl.clean import DataCleaner
 from goldminer.etl.database import DatabaseManager
+from goldminer.analysis.anomaly_detector import AnomalyDetector
 from goldminer.utils import setup_logger
 
 
@@ -28,6 +29,14 @@ class ETLPipeline:
         self.normalizer = DataNormalizer(config)
         self.cleaner = DataCleaner(config)
         
+        # Initialize anomaly detector (optional)
+        try:
+            self.anomaly_detector = AnomalyDetector()
+            self.logger.info("AnomalyDetector initialized")
+        except Exception as e:
+            self.logger.warning(f"Could not initialize AnomalyDetector: {e}")
+            self.anomaly_detector = None
+        
         # Get database path from config
         if config:
             db_path = config.get('database.path', 'data/processed/goldminer.db')
@@ -41,7 +50,8 @@ class ETLPipeline:
                     table_name: str = 'unified_data',
                     is_directory: bool = False,
                     skip_duplicates: bool = True,
-                    skip_outliers: bool = False) -> pd.DataFrame:
+                    skip_outliers: bool = False,
+                    detect_anomalies: bool = False) -> pd.DataFrame:
         """
         Run the complete ETL pipeline.
         
@@ -51,6 +61,7 @@ class ETLPipeline:
             is_directory: Whether source_path is a directory
             skip_duplicates: Whether to remove duplicates
             skip_outliers: Whether to remove outliers
+            detect_anomalies: Whether to detect anomalies in transactions
             
         Returns:
             Processed DataFrame
@@ -105,8 +116,14 @@ class ETLPipeline:
         quality_report = self.cleaner.validate_data_quality(df)
         self.logger.info(f"Quality Report: {quality_report['duplicate_rows']} duplicates remaining")
         
-        # Step 7: Save to database
-        self.logger.info("Step 7: Database Storage")
+        # Step 7: Anomaly Detection (optional)
+        if detect_anomalies and self.anomaly_detector:
+            self.logger.info("Step 7: Anomaly Detection")
+            df = self._enrich_with_anomalies(df)
+        
+        # Step 8: Save to database
+        step_num = 8 if detect_anomalies and self.anomaly_detector else 7
+        self.logger.info(f"Step {step_num}: Database Storage")
         self.db_manager.save_dataframe(df, table_name, if_exists='replace')
         
         self.logger.info("=" * 60)
@@ -189,3 +206,78 @@ class ETLPipeline:
             self.logger.error(f"Error getting pipeline status: {str(e)}")
         
         return status
+    
+    def _enrich_with_anomalies(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Enrich DataFrame with anomaly detection flags.
+        
+        Args:
+            df: Input DataFrame with transaction data
+            
+        Returns:
+            DataFrame with added 'anomalies' column containing lists of anomaly flags
+        """
+        if not self.anomaly_detector:
+            self.logger.warning("AnomalyDetector not available, skipping anomaly detection")
+            return df
+        
+        try:
+            # Identify relevant columns for anomaly detection
+            # Common column names for transaction data
+            amount_col = None
+            merchant_col = None
+            date_col = None
+            
+            # Try to find amount column
+            for col in ['amount', 'Amount', 'transaction_amount', 'value']:
+                if col in df.columns:
+                    amount_col = col
+                    break
+            
+            # Try to find merchant/payee column
+            for col in ['payee', 'Payee', 'merchant', 'Merchant', 'description', 'Description']:
+                if col in df.columns:
+                    merchant_col = col
+                    break
+            
+            # Try to find date column
+            for col in ['date', 'Date', 'transaction_date', 'timestamp', 'Timestamp']:
+                if col in df.columns:
+                    date_col = col
+                    break
+            
+            if not amount_col and not merchant_col:
+                self.logger.warning("Could not find required columns for anomaly detection")
+                return df
+            
+            # Convert DataFrame to list of transaction dictionaries
+            transactions = []
+            for _, row in df.iterrows():
+                txn = {}
+                if amount_col:
+                    txn['amount'] = row[amount_col]
+                if merchant_col:
+                    txn['payee'] = row[merchant_col]
+                if date_col:
+                    txn['date'] = str(row[date_col])
+                transactions.append(txn)
+            
+            # Detect anomalies
+            anomaly_results = self.anomaly_detector.detect_anomalies_batch(transactions)
+            
+            # Add anomaly flags to DataFrame
+            df['anomalies'] = None
+            df['anomalies'] = df['anomalies'].astype('object')
+            
+            for idx, anomaly_list in anomaly_results.items():
+                df.at[idx, 'anomalies'] = ','.join(anomaly_list) if anomaly_list else None
+            
+            anomaly_count = len([v for v in df['anomalies'] if v is not None])
+            self.logger.info(f"Detected anomalies in {anomaly_count} out of {len(df)} transactions")
+            
+            return df
+            
+        except Exception as e:
+            self.logger.error(f"Error during anomaly detection: {e}")
+            return df
+
