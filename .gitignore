@@ -213,3 +213,7 @@ data/raw/*.xls
 data/processed/*.db
 data/processed/*.db-journal
 logs/*.log
+
+# Demo output files
+*_export.xlsx
+demo_*.xlsx
