@@ -11,6 +11,7 @@ from .schema_normalizer import SchemaNormalizer, TransactionRecord
 from .promo_classifier import PromoClassifier, PromoResult
 from .categorizer import Categorizer
 from .xlsx_exporter import XLSXExporter
+from .parquet_exporter import ParquetExporter
 
 __all__ = [
     "DataIngestion",
@@ -28,5 +29,6 @@ __all__ = [
     "PromoClassifier",
     "PromoResult",
     "Categorizer",
-    "XLSXExporter"
+    "XLSXExporter",
+    "ParquetExporter"
 ]

@@ -4,6 +4,7 @@ numpy>=1.24.0
 openpyxl>=3.1.0
 pyyaml>=6.0
 pydantic>=2.0.0
+pyarrow>=14.0.1
 
 # Bank Pattern Recognition and Merchant Resolution
 fuzzywuzzy>=0.18.0
