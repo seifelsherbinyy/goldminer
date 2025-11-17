@@ -11,6 +11,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 import yaml
 import json
+import re
 from fuzzywuzzy import fuzz
 from goldminer.utils import setup_logger
 from goldminer.etl.schema_normalizer import TransactionRecord
@@ -21,10 +22,16 @@ class Categorizer:
     Categorizes transactions based on merchant names, keywords, and patterns.
     
     Priority system:
-    1. Exact merchant match
-    2. Fuzzy merchant match
-    3. Keyword match (English and Arabic)
-    4. Fallback to "Uncategorized"
+    1. Exact match (match key in new format or merchant_exact in old format)
+    2. Regex match (match_regex key in new format)
+    3. Tag match (match_tag key in new format)
+    4. Fuzzy merchant match (merchant_fuzzy in old format)
+    5. Keyword match (keywords in old format)
+    6. Fallback to "Uncategorized"
+    
+    Supports both new and legacy rule formats:
+    - New format: rules with match, match_regex, match_tag keys
+    - Legacy format: rules with merchant_exact, merchant_fuzzy, keywords keys
     
     Attributes:
         rules: Dictionary containing categorization rules
@@ -100,15 +107,97 @@ class Categorizer:
             self.logger.error(f"Error loading rules from {rules_path}: {str(e)}")
             raise
     
+    def load_rules(self, filepath: str) -> None:
+        """
+        Load or reload categorization rules from a YAML configuration file.
+        
+        This method supports both new and legacy rule formats:
+        
+        New format (with match, match_regex, match_tag):
+            rules:
+              - match: "Uber"
+                category: "Transport"
+                subcategory: "Ride Hailing"
+                tags: ["Mobility"]
+              - match_regex: ".*Vodafone.*"
+                category: "Utilities"
+                subcategory: "Telecom"
+                tags: ["Recharge"]
+              - match_tag: "subscription"
+                category: "Entertainment"
+                subcategory: "Streaming"
+                tags: ["Recurring"]
+        
+        Legacy format (with merchant_exact, merchant_fuzzy, keywords):
+            categories:
+              - category: "Food & Dining"
+                subcategory: "Restaurants"
+                tags: ["Dining"]
+                merchant_exact: ["McDonald's"]
+                keywords:
+                  english: ["restaurant"]
+        
+        Implements safe fallback:
+        - If file is missing, logs warning and keeps existing rules
+        - If file is malformed, logs error and keeps existing rules
+        
+        Args:
+            filepath: Path to YAML configuration file
+            
+        Examples:
+            >>> categorizer = Categorizer()
+            >>> categorizer.load_rules('custom_rules.yaml')  # Load new rules
+            >>> categorizer.load_rules('updated_rules.yaml')  # Reload at runtime
+        """
+        filepath_obj = Path(filepath)
+        
+        # Safe fallback: if file doesn't exist, log warning and keep existing rules
+        if not filepath_obj.exists():
+            self.logger.warning(f"Rules file not found: {filepath}. Keeping existing rules.")
+            return
+        
+        try:
+            with open(filepath_obj, 'r', encoding='utf-8') as f:
+                new_rules = yaml.safe_load(f)
+            
+            # Validate rules structure
+            if not isinstance(new_rules, dict):
+                self.logger.error(f"Invalid rules format in {filepath}: must be a dictionary. Keeping existing rules.")
+                return
+            
+            # Support both 'rules' (new format) and 'categories' (legacy format) keys
+            if 'rules' not in new_rules and 'categories' not in new_rules:
+                self.logger.error(f"Invalid rules format in {filepath}: must contain 'rules' or 'categories' key. Keeping existing rules.")
+                return
+            
+            # Update the rules
+            self.rules = new_rules
+            
+            # Count rules for logging
+            rule_count = len(new_rules.get('rules', [])) + len(new_rules.get('categories', []))
+            self.logger.info(f"Successfully loaded/reloaded {rule_count} rules from {filepath}")
+            
+        except yaml.YAMLError as e:
+            self.logger.error(f"YAML parsing error in {filepath}: {str(e)}. Keeping existing rules.")
+        except Exception as e:
+            self.logger.error(f"Error loading rules from {filepath}: {str(e)}. Keeping existing rules.")
+
+        except Exception as e:
+            self.logger.error(f"Error loading rules from {rules_path}: {str(e)}")
+            raise
+    
     def categorize(self, record: TransactionRecord) -> TransactionRecord:
         """
         Categorize a transaction record.
         
         Applies priority-based categorization:
-        1. Exact merchant match
-        2. Fuzzy merchant match
-        3. Keyword match
-        4. Fallback to "Uncategorized"
+        1. Exact match (new format: match key)
+        2. Regex match (new format: match_regex key)
+        3. Tag match (new format: match_tag key)
+        4. Exact merchant match (legacy format: merchant_exact)
+        5. Fuzzy merchant match (legacy format: merchant_fuzzy)
+        6. Keyword match (legacy format: keywords)
+        7. Fallback to "Uncategorized"
         
         Args:
             record: TransactionRecord to categorize
@@ -125,7 +214,19 @@ class Categorizer:
             >>> categorized.subcategory
             'Restaurants'
         """
-        # Try exact merchant match first
+        # Try new format rules first (match, match_regex, match_tag)
+        result = self._match_new_format(record)
+        if result:
+            category, subcategory, tags = result
+            record.category = category
+            record.subcategory = subcategory
+            # Merge with existing tags
+            existing_tags = set(record.tags) if record.tags else set()
+            record.tags = list(existing_tags | set(tags))
+            self.logger.debug(f"New format match: {record.payee} -> {category}/{subcategory}")
+            return record
+        
+        # Try exact merchant match (legacy format)
         result = self._match_exact_merchant(record)
         if result:
             category, subcategory, tags = result
@@ -137,7 +238,7 @@ class Categorizer:
             self.logger.debug(f"Exact merchant match: {record.payee} -> {category}/{subcategory}")
             return record
         
-        # Try fuzzy merchant match
+        # Try fuzzy merchant match (legacy format)
         result = self._match_fuzzy_merchant(record)
         if result:
             category, subcategory, tags = result
@@ -148,7 +249,7 @@ class Categorizer:
             self.logger.debug(f"Fuzzy merchant match: {record.payee} -> {category}/{subcategory}")
             return record
         
-        # Try keyword match
+        # Try keyword match (legacy format)
         result = self._match_keywords(record)
         if result:
             category, subcategory, tags = result
@@ -164,6 +265,10 @@ class Categorizer:
         record.category = fallback.get('category', 'Uncategorized')
         record.subcategory = fallback.get('subcategory', 'General')
         existing_tags = set(record.tags) if record.tags else set()
+        fallback_tags = set(fallback.get('tags', []))
+        record.tags = list(existing_tags | fallback_tags)
+        self.logger.debug(f"Fallback categorization: {record.payee} -> Uncategorized")
+        return record
         fallback_tags = set(fallback.get('tags', []))
         record.tags = list(existing_tags | fallback_tags)
         self.logger.debug(f"Fallback categorization: {record.payee} -> Uncategorized")
@@ -193,6 +298,76 @@ class Categorizer:
         
         self.logger.info(f"Categorized batch of {len(categorized)} records")
         return categorized
+    
+    def _match_new_format(self, record: TransactionRecord) -> Optional[Tuple[str, str, List[str]]]:
+        """
+        Try to match using new rule format (match, match_regex, match_tag).
+        
+        Priority order within new format:
+        1. match (exact string match)
+        2. match_regex (regex pattern match)
+        3. match_tag (tag-based match)
+        
+        Args:
+            record: TransactionRecord to match
+            
+        Returns:
+            Tuple of (category, subcategory, tags) if match found, None otherwise
+        """
+        # Get rules in new format
+        new_rules = self.rules.get('rules', [])
+        if not new_rules:
+            return None
+        
+        if not record.normalized_merchant and not record.payee:
+            return None
+        
+        merchant = record.normalized_merchant or record.payee
+        if not merchant:
+            return None
+        
+        merchant_lower = merchant.lower().strip()
+        
+        # Priority 1: Try exact match
+        for rule in new_rules:
+            if 'match' in rule:
+                match_value = rule['match']
+                if match_value.lower().strip() == merchant_lower:
+                    return (
+                        rule.get('category', 'Uncategorized'),
+                        rule.get('subcategory', 'General'),
+                        rule.get('tags', [])
+                    )
+        
+        # Priority 2: Try regex match
+        for rule in new_rules:
+            if 'match_regex' in rule:
+                try:
+                    pattern = rule['match_regex']
+                    if re.search(pattern, merchant, re.IGNORECASE):
+                        return (
+                            rule.get('category', 'Uncategorized'),
+                            rule.get('subcategory', 'General'),
+                            rule.get('tags', [])
+                        )
+                except re.error as e:
+                    self.logger.warning(f"Invalid regex pattern '{pattern}': {str(e)}")
+                    continue
+        
+        # Priority 3: Try tag match
+        if record.tags:
+            record_tags = set(tag.lower() for tag in record.tags)
+            for rule in new_rules:
+                if 'match_tag' in rule:
+                    match_tag = rule['match_tag'].lower()
+                    if match_tag in record_tags:
+                        return (
+                            rule.get('category', 'Uncategorized'),
+                            rule.get('subcategory', 'General'),
+                            rule.get('tags', [])
+                        )
+        
+        return None
     
     def _match_exact_merchant(self, record: TransactionRecord) -> Optional[Tuple[str, str, List[str]]]:
         """
