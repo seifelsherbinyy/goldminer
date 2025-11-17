@@ -46,6 +46,16 @@ A robust Python ETL (Extract, Transform, Load) pipeline for data processing and 
 - **Charts & Visualizations**: Pie, bar, and line charts in summary sheet
 - **UTF-8 Compatible**: Full support for international characters
 
+### Analytics Notebook (NEW)
+- **Interactive Dashboard**: Jupyter notebook for financial analytics and visualization
+- **Summary Statistics**: Mean spend, std deviation, credit vs debit ratio
+- **Interactive Filters**: Date range, category, account type, and urgency filters
+- **Multiple Visualizations**: Monthly timeline, category breakdown, top merchants, urgency distribution
+- **Anomaly Detection**: Visual timeline with anomaly markers
+- **Export Capability**: Save all charts as PNG files for presentations
+- **Offline Operation**: Fully functional without internet connection
+- **Executive-Ready**: Markdown documentation for non-technical reviewers
+
 ### Configuration & Logging
 - **Config-Driven**: YAML-based configuration for easy customization
 - **Comprehensive Logging**: Structured logging to console and file
@@ -176,6 +186,9 @@ python xlsx_exporter_demo.py
 
 # Excel export integration with database
 python xlsx_exporter_integration_example.py
+
+# Interactive analytics notebook (Jupyter required)
+jupyter notebook GoldMiner_Analytics.ipynb
 ```
 
 **example_usage.py** will:
@@ -207,6 +220,16 @@ python xlsx_exporter_integration_example.py
 2. Query transactions from database
 3. Export to Excel with all formatting
 4. Demonstrate filtered exports
+
+**GoldMiner_Analytics.ipynb** provides:
+1. Interactive Jupyter notebook dashboard
+2. Load and analyze transaction data from Parquet files
+3. Summary statistics with key financial metrics
+4. Interactive filter widgets (date, category, account type, urgency)
+5. Five comprehensive visualizations (timeline, categories, merchants, urgency, anomalies)
+6. Export all charts as PNG images
+7. Complete offline functionality
+8. Executive-ready documentation in markdown cells
 
 ## Project Structure
 
@@ -390,6 +413,27 @@ viz_data = analyzer.generate_visualization_data(df, 'amount', 'timestamp')
 ```
 
 For detailed documentation on TransactionAnalyzer, see [TRANSACTION_ANALYSIS_GUIDE.md](TRANSACTION_ANALYSIS_GUIDE.md).
+
+### Analytics Notebook
+
+For interactive financial analytics with visualizations:
+
+```bash
+# Start Jupyter and open the analytics notebook
+jupyter notebook GoldMiner_Analytics.ipynb
+```
+
+The notebook provides:
+- Interactive data filtering (date, category, account type, urgency)
+- Summary statistics and financial metrics
+- Monthly spending timeline
+- Category breakdown (pie & treemap)
+- Top merchants analysis
+- Urgency distribution
+- Anomaly detection with visual markers
+- PNG export for all visualizations
+
+For detailed notebook documentation, see [GOLDMINER_ANALYTICS_GUIDE.md](GOLDMINER_ANALYTICS_GUIDE.md).
 
 ## Testing
 
