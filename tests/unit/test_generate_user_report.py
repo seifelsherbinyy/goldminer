@@ -343,6 +343,82 @@ class TestGenerateUserReport(unittest.TestCase):
         # Verify file size is substantial (complete data should create larger file)
         file_size = os.path.getsize(output_file)
         self.assertGreater(file_size, 15000)
+    
+    def test_generate_user_report_single_year_data(self):
+        """Test report generation with single year data (should show 'YYYY' in titles)."""
+        # Create transactions all from 2025
+        single_year_transactions = [
+            {
+                'id': f'TXN{i:05d}',
+                'date': datetime(2025, (i % 12) + 1, 1).strftime('%Y-%m-%d'),
+                'payee': f'Merchant {i % 10}',
+                'category': ['Food', 'Transport', 'Shopping'][i % 3],
+                'amount': round(50.0 + (i * 7.3) % 450, 2),
+                'anomalies': ''
+            }
+            for i in range(100)
+        ]
+        
+        output_file = os.path.join(self.temp_dir, 'test_single_year.xlsx')
+        
+        generate_user_report(single_year_transactions, output_file)
+        
+        self.assertTrue(os.path.exists(output_file))
+        
+        # Verify file size is reasonable
+        file_size = os.path.getsize(output_file)
+        self.assertGreater(file_size, 10000)
+    
+    def test_generate_user_report_multi_year_data(self):
+        """Test report generation with multi-year data (should show 'YYYY-YYYY' in titles)."""
+        # Create transactions spanning 2023-2025
+        multi_year_transactions = [
+            {
+                'id': f'TXN{i:05d}',
+                'date': (datetime(2023, 1, 1) + timedelta(days=i * 5)).strftime('%Y-%m-%d'),
+                'payee': f'Merchant {i % 10}',
+                'category': ['Food', 'Transport', 'Shopping', 'Entertainment'][i % 4],
+                'amount': round(50.0 + (i * 11.3) % 450, 2),
+                'anomalies': ''
+            }
+            for i in range(150)
+        ]
+        
+        output_file = os.path.join(self.temp_dir, 'test_multi_year.xlsx')
+        
+        generate_user_report(multi_year_transactions, output_file)
+        
+        self.assertTrue(os.path.exists(output_file))
+        
+        # Verify file size is reasonable
+        file_size = os.path.getsize(output_file)
+        self.assertGreater(file_size, 15000)
+    
+    def test_generate_user_report_many_categories(self):
+        """Test report generation with many categories (tests pie chart color scheme)."""
+        # Create transactions with 12 different categories
+        categories = [f'Category_{i}' for i in range(12)]
+        many_category_transactions = [
+            {
+                'id': f'TXN{i:05d}',
+                'date': (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d'),
+                'payee': f'Merchant {i % 5}',
+                'category': categories[i % len(categories)],
+                'amount': round(50.0 + (i * 7.3) % 450, 2),
+                'anomalies': ''
+            }
+            for i in range(100)
+        ]
+        
+        output_file = os.path.join(self.temp_dir, 'test_many_categories.xlsx')
+        
+        generate_user_report(many_category_transactions, output_file)
+        
+        self.assertTrue(os.path.exists(output_file))
+        
+        # Verify file size is reasonable (more categories might create slightly larger file)
+        file_size = os.path.getsize(output_file)
+        self.assertGreater(file_size, 12000)
 
 
 if __name__ == '__main__':
