@@ -217,3 +217,4 @@ logs/*.log
 # Demo output files
 *_export.xlsx
 demo_*.xlsx
+user_financial_report.xlsx
