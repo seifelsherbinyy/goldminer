@@ -12,6 +12,7 @@ import os
 from typing import Dict, List, Optional, Union, Any
 from pathlib import Path
 from goldminer.utils import setup_logger
+from goldminer.analysis.transaction_classifier import TransactionClassifier
 
 
 class RegexParserEngine:
@@ -31,15 +32,24 @@ class RegexParserEngine:
         For comprehensive examples, see the unit tests in tests/unit/test_regex_parser_engine.py
     """
     
-    def __init__(self, templates_file: Optional[str] = None, use_card_classifier: bool = True):
+    def __init__(
+        self,
+        templates_file: Optional[str] = None,
+        use_card_classifier: bool = True,
+        transaction_classifier: Optional[TransactionClassifier] = None,
+        use_transaction_classifier: bool = True,
+    ):
         """
         Initialize the RegexParserEngine.
         
         Args:
             templates_file: Path to YAML or JSON file containing parsing templates.
                           If None, uses default 'sms_parsing_templates.yaml' in project root.
-            use_card_classifier: Whether to use CardClassifier for enhanced card suffix 
+            use_card_classifier: Whether to use CardClassifier for enhanced card suffix
                                extraction. Default is True.
+            transaction_classifier: Optional TransactionClassifier instance to enrich
+                                    parsed results with ML categories.
+            use_transaction_classifier: Whether to enable ML classification after parsing.
         
         Raises:
             FileNotFoundError: If templates file doesn't exist
@@ -52,6 +62,7 @@ class RegexParserEngine:
         """
         self.logger = setup_logger(__name__)
         self.use_card_classifier = use_card_classifier
+        self.transaction_classifier = None
         
         # Determine templates file path
         if templates_file is None:
@@ -63,6 +74,16 @@ class RegexParserEngine:
         
         # Load templates
         self.templates = self._load_templates()
+
+        if use_transaction_classifier:
+            try:
+                self.transaction_classifier = transaction_classifier or TransactionClassifier()
+                if self.transaction_classifier.pipeline:
+                    self.logger.info("Transaction classifier loaded and ready for inference")
+                else:
+                    self.logger.info("Transaction classifier initialized without a trained model")
+            except Exception as exc:  # pragma: no cover - defensive
+                self.logger.warning(f"Transaction classifier unavailable: {exc}")
         
         self.logger.info(
             f"RegexParserEngine initialized with {len(self.templates)} bank templates"
@@ -331,6 +352,10 @@ class RegexParserEngine:
                 - confidence: Confidence level ('high', 'medium', 'low')
                 - matched_bank: Bank ID that matched (if bank_id was None)
                 - matched_template: Template name that matched
+                - ml_category: ML-predicted category (if classifier is available)
+                - ml_category_score: Confidence score from the classifier
+                - ml_category_confidence: Discrete confidence label for ML prediction
+                - sms_text: The raw SMS text that was parsed
         
         Examples:
             >>> parser = RegexParserEngine()
@@ -402,9 +427,23 @@ class RegexParserEngine:
             self.logger.warning(f"No template matched for SMS: {sms[:50]}...")
             return self._empty_result(
                 confidence='low',
-                matched_bank=bank_id if bank_id else 'unknown'
+                matched_bank=bank_id if bank_id else 'unknown',
+                sms_text=sms,
             )
-        
+
+        best_result['sms_text'] = sms
+
+        if self.transaction_classifier:
+            classification = self.transaction_classifier.classify_sms(
+                sms_text=sms,
+                parsed_fields=best_result,
+            )
+            best_result.update(classification.to_dict())
+        else:
+            best_result.setdefault('ml_category', None)
+            best_result.setdefault('ml_category_score', None)
+            best_result.setdefault('ml_category_confidence', None)
+
         self.logger.info(
             f"Parsed SMS successfully: bank={best_result.get('matched_bank')}, "
             f"confidence={best_result.get('confidence')}"
@@ -415,7 +454,8 @@ class RegexParserEngine:
     def _empty_result(
         self,
         confidence: str = 'low',
-        matched_bank: Optional[str] = None
+        matched_bank: Optional[str] = None,
+        sms_text: Optional[str] = None,
     ) -> Dict[str, Optional[str]]:
         """
         Create an empty result dictionary.
@@ -436,7 +476,11 @@ class RegexParserEngine:
             'card_suffix': None,
             'confidence': confidence,
             'matched_bank': matched_bank,
-            'matched_template': None
+            'matched_template': None,
+            'sms_text': sms_text,
+            'ml_category': None,
+            'ml_category_score': None,
+            'ml_category_confidence': None,
         }
     
     def parse_sms_batch(
