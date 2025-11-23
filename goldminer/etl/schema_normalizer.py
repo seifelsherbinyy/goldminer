@@ -59,6 +59,10 @@ class TransactionRecord:
     interest_rate: Optional[float] = None
     urgency: str = "normal"
     confidence: str = "low"
+    resolved_date: Optional[str] = None
+    transaction_state: Optional[str] = None
+    text_repaired: bool = False
+    extracted_date_raw: Optional[str] = None
 
 
 class SchemaNormalizer:
@@ -111,7 +115,7 @@ class SchemaNormalizer:
         txn_id = self._generate_id()
         
         # Normalize date to ISO 8601
-        normalized_date = self._normalize_date(parsed_txn.date)
+        normalized_date = self._normalize_date(parsed_txn.resolved_date or parsed_txn.date)
         
         # Convert amount to float
         normalized_amount = self._safe_float_cast(parsed_txn.amount)
@@ -133,6 +137,7 @@ class SchemaNormalizer:
         record = TransactionRecord(
             id=txn_id,
             date=normalized_date,
+            resolved_date=normalized_date,
             amount=normalized_amount,
             currency=self._normalize_text(parsed_txn.currency),
             payee=normalized_payee,
@@ -144,7 +149,10 @@ class SchemaNormalizer:
             account_type=account_metadata.get('account_type'),
             interest_rate=account_metadata.get('interest_rate'),
             urgency=urgency,
-            confidence=parsed_txn.confidence or 'low'
+            confidence=parsed_txn.confidence or 'low',
+            transaction_state=(parsed_txn.transaction_state or 'UNKNOWN').upper(),
+            text_repaired=bool(parsed_txn.text_repaired),
+            extracted_date_raw=parsed_txn.extracted_date_raw,
         )
         
         self.logger.debug(f"Normalized transaction: {record.id}")
