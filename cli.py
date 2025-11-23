@@ -101,11 +101,52 @@ def analyze_data(args, df=None, config=None):
         print(f"\n✓ Full report saved to: {args.output}")
 
 
+def run_forecast(args):
+    """Run Monte Carlo forecasts from the unified ledger."""
+    import pandas as pd
+
+    config = ConfigManager(args.config) if args.config else ConfigManager()
+    db_path = config.get('database.path')
+
+    db = DatabaseManager(db_path, config)
+    df = db.load_dataframe(args.table)
+
+    if 'amount' not in df.columns:
+        raise ValueError("Forecasting requires an 'amount' column in the ledger")
+
+    df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
+    df = df.dropna(subset=['amount'])
+
+    forecaster = MonteCarloForecaster(config)
+    result = forecaster.run_forecast(
+        df,
+        horizon_months=args.horizon,
+        risk_level=args.risk,
+        simulations=args.simulations,
+        initial_balance=args.initial_balance,
+    )
+
+    summary_table = result.percentiles.copy()
+    summary_table['table_name'] = args.table
+    summary_table['run_label'] = f"{args.risk}-{args.horizon}m"
+    db.save_dataframe(summary_table, args.persist_table)
+
+    print("\nForecast complete")
+    print(f"  Risk profile: {result.assumptions['risk_level']}")
+    print(f"  Horizon: {result.assumptions['horizon_months']} months")
+    print(f"  Simulations: {result.assumptions['simulations']}")
+    print(f"  Suggested monthly savings: ${result.savings_summary['monthly_savings_capacity']}")
+
+    if args.output:
+        exporter = XLSXExporter()
+        saved_path = exporter.export_forecast_results(result, args.output)
+        print(f"  Excel forecast saved to: {saved_path}")
+
+
 def list_tables(args):
     """List all database tables."""
     config = ConfigManager(args.config) if args.config else ConfigManager()
-    from goldminer.etl import DatabaseManager
-    
+
     db_path = config.get('database.path')
     db = DatabaseManager(db_path, config)
     tables = db.list_tables()
@@ -202,14 +243,28 @@ Examples:
                            help='Detect anomalies in transactions')
     run_parser.add_argument('--config', help='Path to config file')
     run_parser.add_argument('--output', help='Save analysis report to JSON file')
-    
+
     # Analyze command
     analyze_parser = subparsers.add_parser('analyze', help='Analyze existing data')
     analyze_parser.add_argument('--table', default='unified_data',
                                help='Database table to analyze')
     analyze_parser.add_argument('--output', help='Save report to JSON file')
     analyze_parser.add_argument('--config', help='Path to config file')
-    
+
+    # Forecast command
+    forecast_parser = subparsers.add_parser('forecast', help='Run Monte Carlo forecast')
+    forecast_parser.add_argument('--table', default='unified_data',
+                                 help='Database table to forecast from')
+    forecast_parser.add_argument('--horizon', type=int, help='Horizon in months (overrides config)')
+    forecast_parser.add_argument('--simulations', type=int, help='Number of Monte Carlo simulations')
+    forecast_parser.add_argument('--risk', default='balanced', help='Risk level (conservative|balanced|aggressive)')
+    forecast_parser.add_argument('--initial-balance', type=float, default=0.0,
+                                 help='Starting balance before simulations')
+    forecast_parser.add_argument('--persist-table', default='forecast_results',
+                                 help='Table name to persist percentile cones')
+    forecast_parser.add_argument('--output', help='Path to Excel workbook with forecasts')
+    forecast_parser.add_argument('--config', help='Path to config file')
+
     # List tables command
     list_parser = subparsers.add_parser('list', help='List database tables')
     list_parser.add_argument('--config', help='Path to config file')
@@ -249,6 +304,8 @@ Examples:
         run_pipeline(args)
     elif args.command == 'analyze':
         analyze_data(args)
+    elif args.command == 'forecast':
+        run_forecast(args)
     elif args.command == 'list':
         list_tables(args)
     elif args.command == 'train-classifier':

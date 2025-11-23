@@ -6,6 +6,7 @@ from .regex_parser_engine import RegexParserEngine
 from .transaction_classifier import TransactionClassifier, ClassificationResult
 from .card_classifier import CardClassifier
 from .anomaly_detector import AnomalyDetector
+from .forecasting import MonteCarloForecaster, ForecastResult
 
 __all__ = [
     "DataAnalyzer",
