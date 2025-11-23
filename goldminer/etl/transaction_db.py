@@ -50,9 +50,24 @@ class TransactionDB:
                 currency TEXT,
                 anomalies TEXT,
                 confidence REAL,
+                message_hash TEXT,
                 UNIQUE(date, payee, amount, account_id)
             )
         """)
+
+        # Ensure message_hash column exists for idempotent SMS ingestion
+        try:
+            cursor.execute(
+                "ALTER TABLE transactions ADD COLUMN message_hash TEXT",
+            )
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
+
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_message_hash "
+            "ON transactions(message_hash)"
+        )
         
         # Create indexes for fast retrieval
         cursor.execute("""
@@ -127,6 +142,11 @@ class TransactionDB:
         # Generate UUID if not provided
         if 'id' not in transaction or not transaction['id']:
             transaction['id'] = str(uuid.uuid4())
+
+        # Compute message hash for idempotency
+        transaction.setdefault(
+            'message_hash', self._compute_message_hash(transaction)
+        )
         
         # Ensure date is in proper format
         if 'date' in transaction and isinstance(transaction['date'], datetime):
@@ -139,8 +159,8 @@ class TransactionDB:
                 INSERT INTO transactions (
                     id, date, payee, category, subcategory, amount,
                     account_id, account_type, interest_rate, tags,
-                    urgency, currency, anomalies, confidence
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    urgency, currency, anomalies, confidence, message_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 transaction.get('id'),
                 transaction.get('date'),
@@ -155,7 +175,8 @@ class TransactionDB:
                 transaction.get('urgency'),
                 transaction.get('currency'),
                 transaction.get('anomalies'),
-                transaction.get('confidence')
+                transaction.get('confidence'),
+                transaction.get('message_hash'),
             ))
             
             self.connection.commit()
@@ -218,14 +239,27 @@ class TransactionDB:
         """
         cursor = self.connection.cursor()
         
+        limit = None
+        if filters:
+            limit = filters.get('limit')
+
         # Use FTS5 for full-text search
         if filters and 'search' in filters:
             search_term = filters['search']
-            cursor.execute("""
+            params = [search_term]
+            query = """
                 SELECT t.* FROM transactions t
                 INNER JOIN transactions_fts fts ON t.rowid = fts.rowid
                 WHERE transactions_fts MATCH ?
-            """, (search_term,))
+            """
+
+            # Default to a practical limit for search to keep responses fast
+            limit_val = limit if limit is not None else 5000
+            if limit_val:
+                query += " LIMIT ?"
+                params.append(limit_val)
+
+            cursor.execute(query, params)
         else:
             # Build WHERE clause from filters
             where_clauses = []
@@ -261,7 +295,11 @@ class TransactionDB:
             query = "SELECT * FROM transactions"
             if where_clauses:
                 query += " WHERE " + " AND ".join(where_clauses)
-            
+
+            if limit:
+                query += " LIMIT ?"
+                values.append(limit)
+
             cursor.execute(query, values)
         
         # Convert rows to dictionaries
@@ -282,7 +320,8 @@ class TransactionDB:
                 'urgency': row['urgency'],
                 'currency': row['currency'],
                 'anomalies': row['anomalies'],
-                'confidence': row['confidence']
+                'confidence': row['confidence'],
+                'message_hash': row['message_hash'],
             })
         
         self.logger.debug(f"Query returned {len(results)} results")
@@ -417,6 +456,31 @@ class TransactionDB:
         
         # Compute hash
         return hashlib.sha256(composite_key.encode('utf-8')).hexdigest()
+
+    def _compute_message_hash(self, transaction: Dict[str, Any]) -> str:
+        """Compute a deterministic hash for a parsed SMS payload.
+
+        Prefers the raw ``sms_text`` when available to guarantee idempotency for
+        repeated exports of the same message payload. Falls back to the
+        composite transaction hash when the raw SMS is missing.
+        """
+        sms_text = transaction.get('sms_text')
+        if sms_text:
+            return hashlib.sha256(str(sms_text).encode('utf-8')).hexdigest()
+        return self._compute_transaction_hash(transaction)
+
+    def _message_hash_exists(self, message_hash: Optional[str]) -> Optional[str]:
+        """Check if a message hash already exists in the database."""
+        if not message_hash:
+            return None
+
+        cursor = self.connection.cursor()
+        cursor.execute(
+            "SELECT id FROM transactions WHERE message_hash = ?",
+            (message_hash,),
+        )
+        result = cursor.fetchone()
+        return result[0] if result else None
     
     def _transaction_exists(self, transaction: Dict[str, Any]) -> Optional[str]:
         """
@@ -466,9 +530,13 @@ class TransactionDB:
             Exception: If database operation fails (transaction will be rolled back)
         """
         try:
-            # Check if transaction exists
-            existing_id = self._transaction_exists(transaction)
-            
+            # Precompute message hash and short-circuit if already ingested
+            transaction.setdefault(
+                'message_hash', self._compute_message_hash(transaction)
+            )
+            existing_id = self._message_hash_exists(transaction.get('message_hash'))
+            existing_id = existing_id or self._transaction_exists(transaction)
+
             if existing_id:
                 if mode == 'skip':
                     self.logger.info(
