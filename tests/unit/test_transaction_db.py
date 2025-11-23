@@ -491,6 +491,29 @@ class TestTransactionDB(unittest.TestCase):
         # Verify only one transaction exists
         all_txns = self.db.query()
         self.assertEqual(len(all_txns), 1)
+
+    def test_insert_transaction_message_hash_short_circuit(self):
+        """Ensure duplicate message hashes are skipped before DB conflicts."""
+        transaction = {
+            'date': '2024-01-16',
+            'payee': 'Hash Store',
+            'amount': 55.0,
+            'account_id': 'acc_hash',
+            'sms_text': 'Your card was charged 55.00 USD at Hash Store.'
+        }
+
+        first = self.db.insert_transaction(transaction, mode='skip')
+        self.assertEqual(first['status'], 'inserted')
+
+        # Re-insert with a modified payee but same SMS payload; should short-circuit
+        transaction['payee'] = 'Hash Store Updated'
+        second = self.db.insert_transaction(transaction, mode='skip')
+
+        self.assertEqual(second['status'], 'skipped')
+        self.assertEqual(first['id'], second['id'])
+
+        all_txns = self.db.query()
+        self.assertEqual(len(all_txns), 1)
     
     def test_insert_transaction_upsert_mode(self):
         """Test insert_transaction with upsert mode for duplicates."""
@@ -637,15 +660,46 @@ class TestTransactionDB(unittest.TestCase):
         ]
         
         result = self.db.bulk_insert(transactions, mode='upsert')
-        
+
         self.assertEqual(result['updated'], 1)
         self.assertEqual(result['inserted'], 1)
         self.assertEqual(result['skipped'], 0)
-        
+
         # Verify category was updated
         updated_txn = self.db.query({'payee': 'Store A'})[0]
         self.assertEqual(updated_txn['category'], 'Food')
-    
+
+    def test_bulk_insert_replay_is_idempotent(self):
+        """Re-running the same parsed export should not add new rows."""
+        transactions = [
+            {
+                'date': '2024-02-01',
+                'payee': 'Replay Store',
+                'amount': 75.0,
+                'account_id': 'acc_replay',
+                'sms_text': 'Your card **1111 spent 75.00 USD at Replay Store'
+            },
+            {
+                'date': '2024-02-02',
+                'payee': 'Replay Store 2',
+                'amount': 80.0,
+                'account_id': 'acc_replay',
+                'sms_text': 'Your card **1111 spent 80.00 USD at Replay Store 2'
+            },
+        ]
+
+        first_result = self.db.bulk_insert(transactions, mode='skip')
+        self.assertEqual(first_result['inserted'], 2)
+        self.assertEqual(first_result['skipped'], 0)
+
+        count_after_first = self.db.count()
+
+        second_result = self.db.bulk_insert(transactions, mode='skip')
+
+        self.assertEqual(second_result['inserted'], 0)
+        self.assertEqual(second_result['skipped'], 2)
+        self.assertEqual(self.db.count(), count_after_first)
+
     def test_bulk_insert_performance_10k_records(self):
         """Test bulk_insert performance with 10,000+ records."""
         print("\n\nBulk insert performance test with 10,000 records...")
