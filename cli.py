@@ -10,9 +10,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from goldminer.config import ConfigManager
-from goldminer.etl import ETLPipeline
+from goldminer.etl import ETLPipeline, TransactionDB
 from goldminer.analysis import DataAnalyzer, TransactionClassifier
 import json
+import pandas as pd
 
 
 def run_pipeline(args):
@@ -197,6 +198,54 @@ def export_misclassified_samples(args):
     print(f"\n✓ Misclassified samples exported: {len(misclassified)} rows -> {args.output}")
 
 
+def load_parsed_transactions(args):
+    """Load parsed SMS exports into the transaction database."""
+
+    config = ConfigManager(args.config) if args.config else ConfigManager()
+    classifier = TransactionClassifier(model_path=args.model_path)
+
+    parsed_df = classifier.load_parsed_transactions(args.parsed)
+    if parsed_df.empty:
+        print("No parsed rows found; nothing to ingest.")
+        return
+
+    db_path = args.db_path or config.get('database.path')
+    mode = args.mode
+
+    transactions = []
+    for _, row in parsed_df.iterrows():
+        txn = {
+            'date': None if pd.isna(row.get('date')) else row.get('date'),
+            'payee': None if pd.isna(row.get('payee')) else row.get('payee'),
+            'amount': None if pd.isna(row.get('amount')) else row.get('amount'),
+            'account_id': None
+            if pd.isna(row.get('matched_bank'))
+            else row.get('matched_bank'),
+            'currency': None if pd.isna(row.get('currency')) else row.get('currency'),
+            'tags': None
+            if pd.isna(row.get('transaction_type'))
+            else row.get('transaction_type'),
+            'confidence': None if pd.isna(row.get('confidence')) else row.get('confidence'),
+            'sms_text': None if pd.isna(row.get('sms_text')) else row.get('sms_text'),
+        }
+        transactions.append(txn)
+
+    with TransactionDB(db_path) as db:
+        results = db.bulk_insert(transactions, mode=mode)
+
+    print("\n✓ Parsed SMS ingestion complete")
+    print(f"  Database: {db_path}")
+    print(f"  Mode: {mode}")
+    print(
+        f"  Inserted: {results['inserted']} | Updated: {results['updated']} | "
+        f"Skipped: {results['skipped']} | Failed: {results['failed']}"
+    )
+    print(
+        f"  Duration: {results['duration']}s | Throughput: "
+        f"{results['transactions_per_second']} TPS"
+    )
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -298,6 +347,17 @@ Examples:
     mis_parser.add_argument('--target-column', default='category',
                            help='Label column containing human-reviewed categories')
 
+    load_parser = subparsers.add_parser(
+        'load-parsed',
+        help='Load parsed SMS output into the transactions database',
+    )
+    load_parser.add_argument('--parsed', required=True, help='Path to parsed SMS output (csv/parquet/xlsx)')
+    load_parser.add_argument('--db-path', help='Path to the transactions database')
+    load_parser.add_argument('--mode', choices=['skip', 'upsert'], default='skip',
+                             help='Duplicate handling strategy (default: skip)')
+    load_parser.add_argument('--model-path', help='Optional classifier model path for loading parsed data')
+    load_parser.add_argument('--config', help='Path to config file')
+
     args = parser.parse_args()
     
     if args.command == 'run':
@@ -312,6 +372,8 @@ Examples:
         retrain_transaction_classifier(args)
     elif args.command == 'export-misclassified':
         export_misclassified_samples(args)
+    elif args.command == 'load-parsed':
+        load_parsed_transactions(args)
     else:
         parser.print_help()
         sys.exit(1)
