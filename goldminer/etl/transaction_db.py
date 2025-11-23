@@ -408,12 +408,14 @@ class TransactionDB:
         """
         # Extract key fields for hashing
         date = str(transaction.get('date', ''))
+        resolved_date = str(transaction.get('resolved_date', ''))
         amount = str(transaction.get('amount', ''))
         payee = str(transaction.get('payee', ''))
         account_id = str(transaction.get('account_id', ''))
-        
+        transaction_state = str(transaction.get('transaction_state', ''))
+
         # Create composite key string
-        composite_key = f"{date}|{amount}|{payee}|{account_id}"
+        composite_key = f"{date}|{resolved_date}|{amount}|{payee}|{account_id}|{transaction_state}"
         
         # Compute hash
         return hashlib.sha256(composite_key.encode('utf-8')).hexdigest()

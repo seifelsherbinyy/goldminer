@@ -39,6 +39,10 @@ class ParsedTransaction(BaseModel):
     bank_id: Optional[str] = Field(default=None, description="Bank identifier")
     confidence: str = Field(default="low", description="Confidence level")
     warnings: List[str] = Field(default_factory=list, description="Validation warnings")
+    transaction_state: Optional[str] = Field(default=None, description="State classification")
+    resolved_date: Optional[str] = Field(default=None, description="Resolved transaction date")
+    extracted_date_raw: Optional[str] = Field(default=None, description="Raw extracted date string")
+    text_repaired: bool = Field(default=False, description="Whether text repair was applied")
     
     model_config = {
         "validate_assignment": True,
@@ -190,6 +194,18 @@ class ParsedTransaction(BaseModel):
             return 'low'
         
         return v
+
+    @field_validator('transaction_state')
+    @classmethod
+    def validate_transaction_state(cls, v: Optional[str]) -> Optional[str]:
+        """Ensure transaction_state is one of the known enumerations."""
+
+        if v is None:
+            return None
+
+        allowed = {'MONETARY', 'PROMO', 'OTP', 'DECLINED', 'UNKNOWN'}
+        value = v.strip().upper()
+        return value if value in allowed else 'UNKNOWN'
     
     @model_validator(mode='after')
     def validate_model_and_add_warnings(self) -> 'ParsedTransaction':
@@ -334,8 +350,9 @@ class FieldValidator:
             
             # Remove extra fields that aren't part of the model
             allowed_fields = {
-                'amount', 'currency', 'date', 'payee', 'txn_type', 
-                'card_suffix', 'bank_id', 'confidence', 'warnings'
+                'amount', 'currency', 'date', 'payee', 'txn_type',
+                'card_suffix', 'bank_id', 'confidence', 'warnings',
+                'transaction_state', 'resolved_date', 'extracted_date_raw', 'text_repaired'
             }
             normalized_data = {k: v for k, v in normalized_data.items() if k in allowed_fields}
             
@@ -358,13 +375,19 @@ class FieldValidator:
             
             # Create a safe data dict with only valid types
             safe_data = {}
-            for key in ['amount', 'currency', 'date', 'payee', 'txn_type', 'card_suffix', 'bank_id']:
+            for key in [
+                'amount', 'currency', 'date', 'payee', 'txn_type', 'card_suffix',
+                'bank_id', 'transaction_state', 'resolved_date', 'extracted_date_raw',
+                'text_repaired'
+            ]:
                 value = data.get(key)
                 # Only include if it's a string or None
                 if value is None or isinstance(value, str):
                     safe_data[key] = value
                 elif isinstance(value, (int, float)):
                     safe_data[key] = str(value)
+                elif isinstance(value, bool):
+                    safe_data[key] = value
             
             # Handle aliases in safe data
             if 'transaction_type' in data and 'txn_type' not in safe_data:

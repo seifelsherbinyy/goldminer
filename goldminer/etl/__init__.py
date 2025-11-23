@@ -13,6 +13,7 @@ from .categorizer import Categorizer
 from .xlsx_exporter import XLSXExporter
 from .parquet_exporter import ParquetExporter
 from .user_report import generate_user_report
+from .sms_parser_v4 import SMSMultiBankParserV4
 
 __all__ = [
     "DataIngestion",
@@ -32,5 +33,6 @@ __all__ = [
     "Categorizer",
     "XLSXExporter",
     "ParquetExporter",
-    "generate_user_report"
+    "generate_user_report",
+    "SMSMultiBankParserV4"
 ]

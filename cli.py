@@ -5,12 +5,13 @@ GoldMiner CLI - Command-line interface for ETL pipeline operations.
 import argparse
 import sys
 from pathlib import Path
+from datetime import datetime
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from goldminer.config import ConfigManager
-from goldminer.etl import ETLPipeline
+from goldminer.etl import ETLPipeline, SMSMultiBankParserV4, load_sms_messages
 from goldminer.analysis import DataAnalyzer, TransactionClassifier
 import json
 
@@ -197,6 +198,33 @@ def export_misclassified_samples(args):
     print(f"\n✓ Misclassified samples exported: {len(misclassified)} rows -> {args.output}")
 
 
+def run_sms_parser_v4(args):
+    """Run the SMS multi-bank parser v4 with optional text repair."""
+
+    parser = SMSMultiBankParserV4(text_repair_enabled=not args.disable_text_repair)
+    ingested_at = (
+        datetime.fromisoformat(args.ingested_at)
+        if args.ingested_at
+        else None
+    )
+
+    messages = load_sms_messages(args.source, filetype=args.filetype)
+    results = parser.parse_file(
+        filepath=args.source,
+        messages=messages,
+        bank_id=args.bank,
+        ingested_at=ingested_at,
+    )
+
+    print(f"\n✓ Parsed {len(results)} messages")
+    if args.output:
+        import pandas as pd
+
+        df = pd.DataFrame(results)
+        df.to_csv(args.output, index=False)
+        print(f"✓ Saved parsed output to {args.output}")
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -298,6 +326,18 @@ Examples:
     mis_parser.add_argument('--target-column', default='category',
                            help='Label column containing human-reviewed categories')
 
+    sms_parser = subparsers.add_parser(
+        'parse-sms',
+        help='Run the SMS multi-bank parser v4 on a file of messages',
+    )
+    sms_parser.add_argument('source', help='Path to SMS file (.txt or .json)')
+    sms_parser.add_argument('--bank', help='Optional bank id for template selection')
+    sms_parser.add_argument('--filetype', choices=['txt', 'json'], help='Override file type detection')
+    sms_parser.add_argument('--disable-text-repair', action='store_true', help='Disable ftfy-style text repair')
+    sms_parser.add_argument('--ingested-at', help='Ingestion timestamp (ISO format) for year inference')
+    sms_parser.add_argument('--output', help='CSV path for parsed output')
+    sms_parser.add_argument('--config', help='Path to config file')
+
     args = parser.parse_args()
     
     if args.command == 'run':
@@ -312,6 +352,8 @@ Examples:
         retrain_transaction_classifier(args)
     elif args.command == 'export-misclassified':
         export_misclassified_samples(args)
+    elif args.command == 'parse-sms':
+        run_sms_parser_v4(args)
     else:
         parser.print_help()
         sys.exit(1)
