@@ -4,16 +4,20 @@ XLSX Exporter module for exporting transaction data to Excel workbooks.
 This module provides the XLSXExporter class for creating well-formatted Excel workbooks
 with multiple sheets, charts, and formatting suitable for non-technical users.
 """
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, TYPE_CHECKING
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
+import xlsxwriter
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
 from openpyxl.chart import PieChart, BarChart, LineChart, Reference
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.formatting.rule import CellIsRule
 from goldminer.utils import setup_logger
+
+if TYPE_CHECKING:
+    from goldminer.analysis.forecasting import ForecastResult
 
 
 class XLSXExporter:
@@ -933,3 +937,79 @@ class XLSXExporter:
                 # Set width with some padding, but cap at reasonable maximum
                 adjusted_width = min(max_length + 2, 50)
                 ws.column_dimensions[column_letter].width = max(adjusted_width, 10)
+
+    def export_forecast_results(self, forecast_result: "ForecastResult", output_path: str) -> Path:
+        """Export Monte Carlo forecast cones and optimization summary using xlsxwriter."""
+
+        if forecast_result is None:
+            raise ValueError("forecast_result must be provided")
+
+        output_path = str(output_path)
+        if not output_path.endswith('.xlsx'):
+            output_path += '.xlsx'
+
+        export_path = Path(output_path)
+        export_path.parent.mkdir(parents=True, exist_ok=True)
+
+        workbook = xlsxwriter.Workbook(str(export_path), {'nan_inf_to_errors': True})
+
+        formats = {
+            'header': workbook.add_format({'bold': True, 'bg_color': '#1F4E78', 'font_color': 'white'}),
+            'currency': workbook.add_format({'num_format': '$#,##0', 'border': 1}),
+            'number': workbook.add_format({'num_format': '#,##0', 'border': 1}),
+            'title': workbook.add_format({'bold': True, 'font_size': 14}),
+            'text': workbook.add_format({'border': 1}),
+        }
+
+        cone_sheet = workbook.add_worksheet('Forecast Cones')
+        headers = ['Month', 'P5', 'P25', 'P50', 'P75', 'P95']
+        for col, header in enumerate(headers):
+            cone_sheet.write(0, col, header, formats['header'])
+
+        for row_idx, row in forecast_result.percentiles.iterrows():
+            cone_sheet.write_number(row_idx + 1, 0, int(row['month']), formats['number'])
+            cone_sheet.write_number(row_idx + 1, 1, row['p5'], formats['currency'])
+            cone_sheet.write_number(row_idx + 1, 2, row['p25'], formats['currency'])
+            cone_sheet.write_number(row_idx + 1, 3, row['p50'], formats['currency'])
+            cone_sheet.write_number(row_idx + 1, 4, row['p75'], formats['currency'])
+            cone_sheet.write_number(row_idx + 1, 5, row['p95'], formats['currency'])
+
+        chart = workbook.add_chart({'type': 'line'})
+        for col_idx, label in enumerate(headers[1:], start=1):
+            chart.add_series({
+                'name':       [cone_sheet.get_name(), 0, col_idx],
+                'categories': [cone_sheet.get_name(), 1, 0, len(forecast_result.percentiles), 0],
+                'values':     [cone_sheet.get_name(), 1, col_idx, len(forecast_result.percentiles), col_idx],
+            })
+
+        chart.set_title({'name': f"Percentile cones ({forecast_result.assumptions.get('risk_level')})"})
+        chart.set_x_axis({'name': 'Month'})
+        chart.set_y_axis({'name': 'Balance'})
+        chart.set_legend({'position': 'bottom'})
+        cone_sheet.insert_chart('H2', chart, {'x_scale': 1.2, 'y_scale': 1.2})
+
+        optimization_sheet = workbook.add_worksheet('Optimization')
+        optimization_sheet.write('A1', 'Risk Level', formats['header'])
+        optimization_sheet.write('B1', forecast_result.assumptions.get('risk_level', 'n/a'), formats['text'])
+        optimization_sheet.write('A2', 'Monthly Horizon', formats['header'])
+        optimization_sheet.write('B2', forecast_result.assumptions.get('horizon_months'), formats['number'])
+        optimization_sheet.write('A3', 'Simulations', formats['header'])
+        optimization_sheet.write('B3', forecast_result.assumptions.get('simulations'), formats['number'])
+        optimization_sheet.write('A4', 'Monthly Savings Capacity', formats['header'])
+        optimization_sheet.write('B4', forecast_result.savings_summary.get('monthly_savings_capacity'), formats['currency'])
+        optimization_sheet.write('A5', 'Emergency Reserve (months)', formats['header'])
+        optimization_sheet.write('B5', forecast_result.savings_summary.get('reserve_months'), formats['number'])
+        optimization_sheet.write('A6', 'Equity Allocation', formats['header'])
+        optimization_sheet.write('B6', forecast_result.savings_summary.get('investment_split'), formats['number'])
+
+        optimization_sheet.write('A8', 'Recommended allocations', formats['title'])
+        optimization_sheet.write('A9', 'Bucket', formats['header'])
+        optimization_sheet.write('B9', 'Annualized Allocation', formats['header'])
+
+        for idx, (label, amount) in enumerate(forecast_result.allocations.items(), start=10):
+            optimization_sheet.write(idx - 1, 0, label.replace('_', ' ').title(), formats['text'])
+            optimization_sheet.write_number(idx - 1, 1, amount, formats['currency'])
+
+        workbook.close()
+        self.logger.info("Saved forecast workbook to %s", export_path)
+        return export_path

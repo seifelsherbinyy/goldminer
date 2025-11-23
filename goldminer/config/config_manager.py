@@ -66,7 +66,32 @@ class ConfigManager:
                     "zscore_threshold": 3.0,
                     "iqr_multiplier": 1.5
                 },
-                "trend_window": 7  # days for moving average
+                "trend_window": 7,  # days for moving average
+                "forecasting": {
+                    "horizon_months": 36,
+                    "simulations": 500,
+                    "risk_level": "balanced",
+                    "risk_profiles": {
+                        "conservative": {
+                            "expected_return": 0.03,
+                            "volatility": 0.06,
+                            "reserve_months": 6,
+                            "equity_allocation": 0.45
+                        },
+                        "balanced": {
+                            "expected_return": 0.05,
+                            "volatility": 0.12,
+                            "reserve_months": 4,
+                            "equity_allocation": 0.6
+                        },
+                        "aggressive": {
+                            "expected_return": 0.07,
+                            "volatility": 0.18,
+                            "reserve_months": 3,
+                            "equity_allocation": 0.75
+                        }
+                    }
+                }
             },
             "logging": {
                 "level": "INFO",
