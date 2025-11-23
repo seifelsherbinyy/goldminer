@@ -3,7 +3,17 @@ from .analyzer import DataAnalyzer
 from .transaction_analyzer import TransactionAnalyzer
 from .bank_recognizer import BankPatternRecognizer
 from .regex_parser_engine import RegexParserEngine
+from .transaction_classifier import TransactionClassifier, ClassificationResult
 from .card_classifier import CardClassifier
 from .anomaly_detector import AnomalyDetector
 
-__all__ = ["DataAnalyzer", "TransactionAnalyzer", "BankPatternRecognizer", "RegexParserEngine", "CardClassifier", "AnomalyDetector"]
+__all__ = [
+    "DataAnalyzer",
+    "TransactionAnalyzer",
+    "BankPatternRecognizer",
+    "RegexParserEngine",
+    "CardClassifier",
+    "AnomalyDetector",
+    "TransactionClassifier",
+    "ClassificationResult",
+]

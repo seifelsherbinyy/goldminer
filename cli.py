@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from goldminer.config import ConfigManager
 from goldminer.etl import ETLPipeline
-from goldminer.analysis import DataAnalyzer
+from goldminer.analysis import DataAnalyzer, TransactionClassifier
 import json
 
 
@@ -117,6 +117,45 @@ def list_tables(args):
         print(f"  • {table}: {info['row_count']} rows, {len(info['columns'])} columns")
 
 
+def retrain_transaction_classifier(args):
+    """Retrain the ML transaction classifier using parsed SMS data and corrections."""
+
+    classifier = TransactionClassifier(model_path=args.model_path)
+    stats = classifier.retrain_from_files(
+        parsed_path=args.parsed,
+        correction_files=args.corrections,
+        text_columns=args.text_columns,
+        target_column=args.target_column,
+    )
+
+    print("\n✓ Transaction classifier retrained")
+    print(f"✓ Samples used: {int(stats['samples'])}")
+    print(f"✓ Unique labels: {int(stats['labels'])}")
+    print(f"✓ Model saved to: {classifier.model_path}")
+
+
+def export_misclassified_samples(args):
+    """Export misclassified samples for human review."""
+
+    classifier = TransactionClassifier(model_path=args.model_path)
+    if classifier.pipeline is None:
+        classifier.load_model()
+
+    dataset = classifier.load_parsed_transactions(args.parsed)
+    corrections = classifier.load_corrections(args.corrections or [])
+    if not corrections.empty:
+        dataset = classifier.merge_corrections(dataset, corrections)
+
+    misclassified = classifier.export_misclassifications(
+        dataset=dataset,
+        output_path=args.output,
+        text_columns=args.text_columns,
+        target_column=args.target_column,
+    )
+
+    print(f"\n✓ Misclassified samples exported: {len(misclassified)} rows -> {args.output}")
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -174,7 +213,36 @@ Examples:
     # List tables command
     list_parser = subparsers.add_parser('list', help='List database tables')
     list_parser.add_argument('--config', help='Path to config file')
-    
+
+    # Train transaction classifier
+    train_parser = subparsers.add_parser(
+        'train-classifier',
+        help='Retrain the ML transaction classifier using parsed SMS data and corrections',
+    )
+    train_parser.add_argument('--parsed', required=True, help='Path to parsed SMS output (csv/parquet/xlsx)')
+    train_parser.add_argument('--corrections', nargs='+', required=True,
+                              help='One or more Excel correction files to merge')
+    train_parser.add_argument('--model-path', help='Override path for saving the trained model')
+    train_parser.add_argument('--text-columns', nargs='+', dest='text_columns',
+                              help='Text columns to use (default uses sms_text, payee, normalized_merchant, transaction_type)')
+    train_parser.add_argument('--target-column', default='category',
+                              help='Label column to train on (default: category)')
+
+    # Export misclassified samples
+    mis_parser = subparsers.add_parser(
+        'export-misclassified',
+        help='Export misclassified samples for review',
+    )
+    mis_parser.add_argument('--parsed', required=True, help='Path to parsed SMS output (csv/parquet/xlsx)')
+    mis_parser.add_argument('--corrections', nargs='+',
+                            help='Optional correction files to merge before evaluation')
+    mis_parser.add_argument('--output', required=True, help='Destination CSV/XLSX file for misclassified rows')
+    mis_parser.add_argument('--model-path', help='Path to a trained classifier model')
+    mis_parser.add_argument('--text-columns', nargs='+', dest='text_columns',
+                           help='Text columns to use (default uses sms_text, payee, normalized_merchant, transaction_type)')
+    mis_parser.add_argument('--target-column', default='category',
+                           help='Label column containing human-reviewed categories')
+
     args = parser.parse_args()
     
     if args.command == 'run':
@@ -183,6 +251,10 @@ Examples:
         analyze_data(args)
     elif args.command == 'list':
         list_tables(args)
+    elif args.command == 'train-classifier':
+        retrain_transaction_classifier(args)
+    elif args.command == 'export-misclassified':
+        export_misclassified_samples(args)
     else:
         parser.print_help()
         sys.exit(1)
